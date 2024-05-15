@@ -1,0 +1,5 @@
+__pycache__
+.env
+ollama/storage
+chroma/storage
+rag-api/storage

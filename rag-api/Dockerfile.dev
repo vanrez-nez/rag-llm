@@ -1,0 +1,22 @@
+# Use the official Python base image
+FROM python:3.11.9
+
+# Set the working directory in the container
+WORKDIR /app
+
+# Copy the poetry.lock and pyproject.toml files to the container
+COPY poetry.lock pyproject.toml ./
+
+# Install poetry
+RUN pip install --no-cache-dir poetry
+
+RUN poetry lock
+
+# Install project dependencies
+RUN poetry install --with dev --no-interaction --no-ansi
+
+# Copy the application code to the container
+COPY . .
+
+# Set the entry point for the container
+CMD ["poetry", "run", "python", "watcher.py"]

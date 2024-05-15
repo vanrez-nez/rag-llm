@@ -1,0 +1,28 @@
+[tool.poetry]
+name = "rag-api"
+version = "0.1.0"
+description = ""
+authors = ["Ivan Juarez <ivan@blindgazer.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11.9"
+openai = "^1.6.1"
+ollama = "^0.1.9"
+aiofiles = "^23.2.1"
+aiohttp = "^3.9.5"
+langchain = "^0.1.20"
+langchain-community = "^0.0.38"
+langchain-experimental = "^0.0.58"
+wikipedia = "^1.4.0"
+flask = "^3.0.3"
+
+[tool.poetry.group.dev]
+optional = true
+
+[tool.poetry.group.dev.dependencies]
+watchdog = "^4.0.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

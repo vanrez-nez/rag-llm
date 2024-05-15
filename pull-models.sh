@@ -1,0 +1,1 @@
+docker exec -it ollama ollama pull llama3
