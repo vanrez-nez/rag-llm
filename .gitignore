@@ -3,3 +3,4 @@ __pycache__
 ollama/storage
 chroma/storage
 rag-api/storage
+server.lock
