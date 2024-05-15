@@ -18,8 +18,7 @@ def kill_previous_instance():
       log(f'Killing instance with PID: {pid}')
       try:
         os.kill(pid, signal.SIGTERM)
-        os.waitpid(pid, os.WNOHANG)
-        time.sleep(2)
+        time.sleep(5)
       except OSError:
         error(f'Process not found PID: {pid}')
         return False
