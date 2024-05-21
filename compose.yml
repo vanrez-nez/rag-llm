@@ -18,6 +18,7 @@ services:
       - ./chroma/storage:/chroma/chroma
     environment:
       - IS_PERSISTENT=TRUE
+      - ALLOW_RESET=TRUE
       - PERSIST_DIRECTORY=/chroma/chroma
       - ANONYMIZED_TELEMETRY=${ANONYMIZED_TELEMETRY:-TRUE}
     ports:
