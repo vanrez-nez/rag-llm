@@ -5,6 +5,8 @@ from aiopath import AsyncPath
 from aiofiles import open as aio_open
 from bs4 import BeautifulSoup
 from base.logger import log
+from base.logger import warn
+from base.logger import error
 from base.request import get_url
 from base.json_search import JSONSearch
 from base.utils import fix_punctuation_spaces
@@ -15,6 +17,11 @@ API_URL = 'https://overpass-api.de/api/interpreter'
 WIKIDATA_REST_URL = 'https://www.wikidata.org/w/rest.php/wikibase/v0/entities/items/{id}'
 WIKIPEDIA_PAGE_URL = 'https://{lang}.wikipedia.org/wiki/{slug}'
 WIKIPEDIA_SEARCH_URL = 'https://{lang}.wikipedia.org/w/index.php?search={term}'
+
+
+FIXED_WIKI_LOCATIONS = {
+  "Q10794738": 'https://es.wikipedia.org/wiki/Municipio_de_Morelos_(Michoac%C3%A1n)'
+}
 
 """
   Get Countries with area codes:
@@ -54,6 +61,7 @@ async def get_locations(code_id: int, admin_level: int):
     if ',' in slug:
       slug = ''
     elements.append({
+      'id': element.get('id'),
       'name': name,
       'wikidata': wikidata,
       'wikipedia': wikipedia,
@@ -141,8 +149,19 @@ async def find_wiki_page(query: str, lang: str):
   page_slug = anchor.get('href').replace('/wiki/', '')
   return WIKIPEDIA_PAGE_URL.format(lang=lang, slug=page_slug)
 
-async def get_wiki_pages():
+async def get_from_fixed_locations(wikidata_id: str):
+  # read file from fixed_locations.json
+  try:
+    async with aio_open('scraper/fixed_locations.json', 'r', encoding='utf-8') as f:
+      data = json.loads(await f.read())
+      # find data array for entry with id === wikidata_id
+      entry = next((entry for entry in data if entry['id'] == wikidata_id), None)
+      return entry
+  except Exception as e:
+    error(f"Error reading fixed locations: {e}")
+    return None
 
+async def get_wiki_pages():
   countries = await get_locations(COUNTRY_AREA_CODE, ADMIN_LEVEL_COUNTRY)
   states = await get_locations(COUNTRY_AREA_CODE, ADMIN_LEVEL_STATE)
   cities = await get_locations(COUNTRY_AREA_CODE, ADMIN_LEVEL_CITY)
@@ -154,45 +173,61 @@ async def get_wiki_pages():
   entries = []
   for loc in locations:
     geo_info = await extract_geo_info(loc['wikidata'], True)
-    wikipedia_url = geo_info['eswiki']
+    wikipedia_url = geo_info['eswiki'] or FIXED_WIKI_LOCATIONS.get(loc['wikidata'])
     if not wikipedia_url:
       loc['lang'] = 'es'
-      wiki_query = [loc['name'], geo_info['state'], geo_info['country']]
+      wiki_query = [loc['name'], geo_info['state'], geo_info['country'], f"intitle:{loc['name']}"]
       wiki_query = ' '.join([q for q in wiki_query if q])
       wiki_query = wiki_query.replace(' ', '+')
-      log(f"Finding wiki page from: {loc} because it doesn't have wikipedia link. Search query: {wiki_query}")
       wikipedia_url = await find_wiki_page(wiki_query, loc['lang'])
+      warn(f"Alternative wiki page used: {wikipedia_url} from: {loc['name']}.")
+      log(f"\t> Search query augmented with {geo_info['name']}, {geo_info['state']} from Wikidata: {geo_info['id']}")
+      log(f"\t> Search URL: {WIKIPEDIA_SEARCH_URL.format(lang=loc['lang'], term=wiki_query)}")
       if not wikipedia_url:
-        log(f"Couldn't find wiki page from: {loc}")
-        continue
+        warn(f"Couldn't find wiki page from: {loc}")
 
     if (wikipedia_url is not None):
       page = await get_url(wikipedia_url, sys.maxsize, 'html')
-      entries.append({ 'url': wikipedia_url, 'contents': page, 'geo_info': geo_info })
-    # time.sleep(1)
+      entries.append({ 'scrape': True, 'url': wikipedia_url, 'contents': page, 'geo_info': geo_info })
+    else:
+      log(f"Trying to get data from local fixed locations for: {loc['name']}")
+      fixed_loc = await get_from_fixed_locations(loc['wikidata'])
+      if fixed_loc:
+        log(f"Fixed location found: {loc['name']}")
+        entries.append({ 'scrape': False, 'url': fixed_loc['url'], 'contents': fixed_loc['description'], 'geo_info': geo_info })
+      else:
+        error(f"Couldn't find wiki page from: {loc}")
   return entries
 
 async def scrape_wiki_pages(pages):
   result = []
   for page in pages:
-    log(f"Scraping page: {page['url']}")
-    soup = BeautifulSoup(page['contents'], 'html.parser')
-    description = soup.select_one('.mw-body-content .mw-parser-output > .infobox ~ p:not(.mw-empty-elt)')
-    if not description:
-      description = soup.select_one('.mw-body-content .mw-parser-output > p')
-    # remove elements with class .not-here
-    for el in description.select('.autonumber, sup, small'):
-      el.decompose()
-    # remove empty parentheses
-    description = description.getText().replace('()', '')
-    # generic punctuation fixes
-    description = fix_punctuation_spaces(description)
-    result.append({
-      'url': page['url'],
-      'title': soup.select_one('h1').getText(),
-      'description': description,
-      'geo_info': page['geo_info'],
-    })
+    if page['scrape']:
+      log(f"Scraping page: {page['url']}")
+      soup = BeautifulSoup(page['contents'], 'html.parser')
+      description = soup.select_one('.mw-body-content .mw-parser-output > .infobox ~ p:not(.mw-empty-elt)')
+      if not description:
+        description = soup.select_one('.mw-body-content .mw-parser-output > p')
+      # remove elements with class .not-here
+      for el in description.select('.autonumber, sup, small'):
+        el.decompose()
+      # remove empty parentheses
+      description = description.getText().replace('()', '')
+      # generic punctuation fixes
+      description = fix_punctuation_spaces(description)
+      result.append({
+        'url': page['url'],
+        'title': soup.select_one('h1').getText(),
+        'description': description,
+        'geo_info': page['geo_info'],
+      })
+    else:
+      result.append({
+        'url': page['url'],
+        'title': page['geo_info']['name'],
+        'description': page['contents'],
+        'geo_info': page['geo_info'],
+      })
   return result
 
 def replace_unicode_escapes(text: str):
@@ -245,5 +280,4 @@ async def generate_locations_data(force_generation=False):
   log(f"Locations data generated in {LOCATIONS_FILE} with {len(entries)} entries")
 
 if __name__ == "__main__":
-  import asyncio
-  loop = asyncio.get_event_loop()
+  pass

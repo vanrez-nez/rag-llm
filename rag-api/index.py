@@ -13,7 +13,7 @@ from langchain.chains.retrieval import create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain.prompts import PromptTemplate, ChatPromptTemplate, MessagesPlaceholder
 from base.services import get_ollama
-from database import import_wiki_locations
+from scraper.wiki_locations import generate_locations_data
 
 app = Flask(__name__)
 
@@ -69,6 +69,6 @@ def chroma_llm():
 
 if __name__ == '__main__':
   kill_previous_instance()
-  # loop = asyncio.get_event_loop()
-  # loop.run_until_complete(import_wiki_locations())
-  app.run(host="0.0.0.0", port=80)
+  loop = asyncio.get_event_loop()
+  loop.run_until_complete(generate_locations_data(True))
+  # app.run(host="0.0.0.0", port=80)

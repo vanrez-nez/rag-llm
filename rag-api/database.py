@@ -10,12 +10,15 @@ WIKIS_COLLECTION_NAME = "wiki_locations"
 async def import_wiki_locations():
   locations = await generate_locations_data()
   client = get_chroma()
+  client.reset()
   collection = client.get_or_create_collection(WIKIS_COLLECTION_NAME)
   for location in locations:
     log(f"Processing location: {location['title']}")
     geo = location['geo_info']
+    borders = f"Fronteras: {geo['borders']}." if geo['borders'] else ''
+    aliases = f"Tambien conocido como: {geo['aliases']}." if geo['aliases'] else ""
     collection.upsert(
-      documents=[f"{location['title']}: {location['description']}"],
+      documents=[f"{location['title']}: {location['description']}. {aliases} {borders}"],
       metadatas=[{
         'nombre': geo['name'],
         'aliases': geo['aliases'] or '',
@@ -50,5 +53,5 @@ def test_chroma(query: str):
   # )
   collection = chroma_client.get_or_create_collection(WIKIS_COLLECTION_NAME)
   # results = collection.peek(limit = 10)
-  results = collection.query(query_texts=[query], n_results=10)
+  results = collection.query(query_texts=[query], n_results=3)
   return results
