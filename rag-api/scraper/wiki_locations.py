@@ -23,6 +23,10 @@ FIXED_WIKI_LOCATIONS = {
   "Q10794738": 'https://es.wikipedia.org/wiki/Municipio_de_Morelos_(Michoac%C3%A1n)'
 }
 
+FIXED_WIKIDATA_LOCATIONS = {
+  "Q20127021": "Q51120215"
+}
+
 """
   Get Countries with area codes:
   https://overpass-turbo.eu/#
@@ -72,6 +76,7 @@ async def get_locations(code_id: int, admin_level: int):
 
 async def extract_geo_info(wikimedia_id: str, resolve_nested_locations=False):
   # log(f"Extracting geo info on: {wikimedia_id}")
+  wikimedia_id = FIXED_WIKIDATA_LOCATIONS.get(wikimedia_id) or wikimedia_id
   url = WIKIDATA_REST_URL.format(id=wikimedia_id)
   data = await get_url(url, sys.maxsize, 'json')
   json = JSONSearch(data)
