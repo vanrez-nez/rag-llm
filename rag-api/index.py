@@ -1,4 +1,5 @@
 import os
+import asyncio
 from flask import Flask
 from flask import json
 from flask import request
@@ -12,12 +13,7 @@ from langchain.chains.retrieval import create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain.prompts import PromptTemplate, ChatPromptTemplate, MessagesPlaceholder
 from base.services import get_ollama
-from scrap_geo import get_wiki_pages
-
-# run async function
-import asyncio
-loop = asyncio.get_event_loop()
-loop.run_until_complete(get_wiki_pages())
+from database import import_wiki_locations
 
 app = Flask(__name__)
 
@@ -73,4 +69,6 @@ def chroma_llm():
 
 if __name__ == '__main__':
   kill_previous_instance()
+  # loop = asyncio.get_event_loop()
+  # loop.run_until_complete(import_wiki_locations())
   app.run(host="0.0.0.0", port=80)

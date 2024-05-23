@@ -1,3 +1,4 @@
+import re
 from threading import Timer
 
 def debounce(wait):
@@ -16,3 +17,15 @@ def debounce(wait):
             debounced.t.start()
         return debounced
     return decorator
+
+def fix_punctuation_spaces(text: str) -> str:
+  # remove double spaces
+  text = re.sub(r'\s+', ' ', text)
+  # remove space before punctuation using regex
+  text = re.sub(r'\s+([,.])', r'\1', text)
+  # trim spaces inside quotes
+  text = re.sub(r'[“”‘’]', '"', text)
+  text = re.sub(r'"(\s*)(.*?)(\s*)"', r'"\2"', text)
+  # trim spaces inside parentheses
+  text = re.sub(r'\((\s*)(.*?)(\s*)\)', r'(\2)', text)
+  return text.strip()

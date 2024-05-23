@@ -6,20 +6,21 @@ authors = ["Ivan Juarez <ivan@blindgazer.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "3.11.9"
+python = "3.12.3"
 psutil = "^5.9.8"
 beautifulsoup4 = "^4.12.3"
 openai = "^1.6.1"
 ollama = "^0.1.9"
 aiofiles = "^23.2.1"
+aiopath = "^0.7.7"
 aiohttp = "^3.9.5"
 langchain = "^0.1.20"
 langchain-community = "^0.0.38"
 langchain-experimental = "^0.0.58"
-wikipedia = "^1.4.0"
 langchain-chroma = "^0.1.1"
 chromadb = "^0.5.0"
 flask = "^3.0.3"
+jmespath = "^1.0.1"
 
 [tool.poetry.group.dev]
 optional = true
