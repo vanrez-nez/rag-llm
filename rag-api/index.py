@@ -8,14 +8,20 @@ from base.logger import log
 from base.profile import profile_function
 from server_process import kill_previous_instance
 from database import test_chroma
+from database import import_wiki_locations
 from langchain_community.retrievers import WikipediaRetriever
 from langchain.chains.retrieval import create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain.prompts import PromptTemplate, ChatPromptTemplate, MessagesPlaceholder
 from base.services import get_ollama
-from scraper.wiki_locations import generate_locations_data
-
+from prompts.article_geo_location import build_prompt as article_geo_location_prompt
+from prompts.default import build_prompt as default_prompt
 app = Flask(__name__)
+
+def get_prompt(prompt_type, *args, **kwargs):
+  if prompt_type == 'article_geo_location':
+    return article_geo_location_prompt(*args, **kwargs)
+  return default_prompt(*args, **kwargs)
 
 @profile_function
 def load_wikipedia_llm():
@@ -67,8 +73,24 @@ def chroma_llm():
   response = Response(json_str, content_type='application/json; charset=utf-8')
   return response
 
+@app.route("/ollama_llm", methods=["POST"])
+def ollama_llm():
+  # query = request.form.get('query')
+  prompt_vars = {key.replace('prompt_', ''): value for key, value in request.form.items() if key.startswith('prompt_')}
+  prompt_vars.pop('type', None)
+  prompt = get_prompt(request.form.get('prompt_type'), **prompt_vars)
+  model = get_ollama()
+  resp = model.invoke(prompt)
+  json_str = json.dumps(resp, ensure_ascii=False)
+  # json_str = ''
+  response = Response(json_str, content_type='application/json; charset=utf-8')
+  return response
+
 if __name__ == '__main__':
   kill_previous_instance()
-  loop = asyncio.get_event_loop()
-  loop.run_until_complete(generate_locations_data(True))
-  # app.run(host="0.0.0.0", port=80)
+  # from scraper.wiki_locations import generate_locations_data
+  # loop = asyncio.get_event_loop()
+  # loop.run_until_complete(generate_locations_data(True))
+  # loop = asyncio.get_event_loop()
+  # loop.run_until_complete(import_wiki_locations())
+  app.run(host="0.0.0.0", port=80)

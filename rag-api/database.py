@@ -3,15 +3,21 @@ from base.logger import log
 from base.services import get_chroma
 from base.services import get_ollama
 from base.services import get_ollama_embedding_fn
+from base.services import get_default_embedding_fn
 from scraper.wiki_locations import generate_locations_data
 
-WIKIS_COLLECTION_NAME = "wiki_locations"
+WIKIS_LOCATIONS_COLLECTION_NAME = "wiki_locations"
 
 async def import_wiki_locations():
   locations = await generate_locations_data()
+  # locations = locations[:50]
   client = get_chroma()
   client.reset()
-  collection = client.get_or_create_collection(WIKIS_COLLECTION_NAME)
+  collection = client.get_or_create_collection(
+    WIKIS_LOCATIONS_COLLECTION_NAME,
+    embedding_function=get_default_embedding_fn(),
+    metadata={ "hnsw:space": "cosine" }
+  )
   for location in locations:
     log(f"Processing location: {location['title']}")
     geo = location['geo_info']
@@ -40,18 +46,13 @@ async def import_wiki_locations():
   log(len(locations))
 
 def test_chroma(query: str):
-  chroma_client = get_chroma()
-  # ollama_client = get_ollama()
-  # ollama_client("Hola, soy un bot de prueba. ¿En qué puedo ayudarte hoy?")
-  # embed_fn = get_ollama_embedding_fn()
-  # chroma_client.delete_collection("news")
-  # chroma_client.reset()
-  # collection = chroma_client.create_collection(
-  #   "news",
-  #   embedding_function=embed_fn,
-  #   # metadata={"hnsw:space": "ip"} # l2 is the default
-  # )
-  collection = chroma_client.get_or_create_collection(WIKIS_COLLECTION_NAME)
+  client = get_chroma()
+  collection = client.get_or_create_collection(
+    WIKIS_LOCATIONS_COLLECTION_NAME,
+    embedding_function=get_default_embedding_fn(),
+    metadata={ "hnsw:space": "cosine"} # l2 is the default
+  )
+
   # results = collection.peek(limit = 10)
-  results = collection.query(query_texts=[query], n_results=3)
+  results = collection.query(query_texts=[query], n_results=10, )
   return results
