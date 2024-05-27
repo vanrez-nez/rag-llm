@@ -1,8 +1,8 @@
 from curses import meta
 from base.logger import log
 from base.services import get_chroma
-from base.services import get_ollama
-from base.services import get_ollama_embedding_fn
+# from base.services import get_ollama
+# from base.services import get_ollama_embedding_fn
 from base.services import get_default_embedding_fn
 from scraper.wiki_locations import generate_locations_data
 

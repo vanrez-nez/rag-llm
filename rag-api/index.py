@@ -16,6 +16,7 @@ from langchain.prompts import PromptTemplate, ChatPromptTemplate, MessagesPlaceh
 from base.services import get_ollama
 from prompts.article_geo_location import build_prompt as article_geo_location_prompt
 from prompts.default import build_prompt as default_prompt
+from database_milvus import test_milvus_db
 app = Flask(__name__)
 
 def get_prompt(prompt_type, *args, **kwargs):
@@ -71,6 +72,12 @@ def chroma_llm():
   # log(results)
   json_str = json.dumps(results, ensure_ascii=False)
   response = Response(json_str, content_type='application/json; charset=utf-8')
+  return response
+
+@app.route("/milvus_db", methods=["POST"])
+def milvus_db():
+  test_milvus_db()
+  response = Response('Running!', content_type='application/json; charset=utf-8')
   return response
 
 @app.route("/ollama_llm", methods=["POST"])
