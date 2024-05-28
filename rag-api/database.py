@@ -1,53 +1,67 @@
 from curses import meta
 from operator import index
+import re
 from base.logger import log
 from base.services import get_chroma
 # from base.services import get_ollama
 # from base.services import get_ollama_embedding_fn
 from base.services import get_default_embedding_fn
-from scraper.wiki_locations import generate_locations_data
+from scraper.locations import get_wiki_locations
+from scraper.locations import get_nominatim_locations
 
-WIKIS_LOCATIONS_COLLECTION_NAME = "wiki_locations"
+LOCATIONS_COLLECTION_NAME = "geo_locations"
 
-async def import_wiki_locations():
-  locations = await generate_locations_data()
+async def import_nominatim_locations(regenerate):
+  locations = await get_nominatim_locations(regenerate)
+  return []
+
+async def import_locations(regenerate):
+  await import_wiki_locations(regenerate)
+  await import_nominatim_locations(regenerate)
+
+async def import_wiki_locations(regenerate):
+  locations = []
+  locations += await get_wiki_locations(False)
+  # locations += await get_nominatim_locations(regenerate)
   # locations = locations[:50]
   client = get_chroma()
   client.reset()
   collection = client.get_or_create_collection(
-    WIKIS_LOCATIONS_COLLECTION_NAME,
+    LOCATIONS_COLLECTION_NAME,
     embedding_function=get_default_embedding_fn(),
     metadata={ "hnsw:space": "l2" }
   )
   for location in locations:
     log(f"Processing location: {location['title']}")
+    log(location)
     geo = location['geo_info']
     aliases = f"Tambien conocido como: {geo['aliases']}." if geo['aliases'] else ""
-    indexable_items = [location['title'], geo['state'], aliases]
+    indexable_items = [location.get('title'), geo.get('state'), aliases]
     # filter out empty values
     indexable_items = [item for item in indexable_items if item]
     collection.upsert(
       documents=['. '.join(indexable_items)],
       metadatas=[{
-        'description': location['description'],
-        'name': geo['name'],
-        'aliases': geo['aliases'] or '',
-        'country': geo['country'],
-        'state': geo['state'] or '',
-        'capital_city': geo['capital_city'] or '',
-        'borders': geo['borders'],
-        'latitud': geo['lat'] or 0,
-        'longitud': geo['lng'] or 0,
-        'is_country': geo['is_country'],
-        'is_city': geo['is_city'],
-        'is_municipality': geo['is_municipality'],
-        'is_state': geo['is_state'],
-        'url': location['url'],
+        'description': location.get('description', ''),
+        'name': geo.get('name', ''),
+        'aliases': geo.get('aliases', '') or '',
+        'country': geo.get('country', ''),
+        'state': geo.get('state', '') or '',
+        'capital_city': geo.get('capital_city', '') or '',
+        'borders': geo.get('borders', '') or '',
+        'lat': geo.get('lat', 0) or 0,
+        'lng': geo.get('lng', 0) or 0,
+        'type': geo.get('type', ''),
+        # 'is_country': geo.get('is_country', False),
+        # 'is_city': geo.get('is_city', False),
+        # 'is_town': geo.get('is_town', False),
+        # 'is_village': geo.get('is_village', False),
+        # 'is_municipality': geo.get('is_municipality', False),
+        # 'is_state': geo.get('is_state', False),
+        'url': location.get('url', ''),
       }],
       ids=[geo['id']]
     )
-
-  log(len(locations))
 
 def format_results(results):
   items = []
@@ -64,7 +78,7 @@ def format_results(results):
 def query_location(query: str):
   client = get_chroma()
   collection = client.get_or_create_collection(
-    WIKIS_LOCATIONS_COLLECTION_NAME,
+    LOCATIONS_COLLECTION_NAME,
     embedding_function=get_default_embedding_fn(),
     metadata={ "hnsw:space": "l2" } # l2 is the default
   )

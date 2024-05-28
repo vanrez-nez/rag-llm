@@ -29,3 +29,29 @@ def fix_punctuation_spaces(text: str) -> str:
   # trim spaces inside parentheses
   text = re.sub(r'\((\s*)(.*?)(\s*)\)', r'(\2)', text)
   return text.strip()
+
+def replace_unicode_escapes(text: str):
+  # replace unicode chars with their actual representation
+  replacements = {
+    "\\u00c1": "Á",
+    "\\u00c9": "É",
+    "\\u00cd": "Í",
+    "\\u00d3": "Ó",
+    "\\u00da": "Ú",
+    "\\u00dc": "Ü",
+    "\\u00e9": "é",
+    "\\u00fa": "ú",
+    "\\u00f3": "ó",
+    "\\u00ed": "í",
+    "\\u00e1": "á",
+    "\\u00f1": "ñ",
+    "\\u00fc": "ü",
+    "\\u200b": "",
+    "\\u00a0": " ",
+    "\\u2019": "'",
+    "\\u2018": "'",
+    "\\u00b2": ""
+  }
+  for k, v in replacements.items():
+    text = text.replace(k, v)
+  return text

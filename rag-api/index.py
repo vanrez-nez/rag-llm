@@ -7,7 +7,6 @@ from flask import Response
 from base.logger import log
 from base.profile import profile_function
 from server_process import kill_previous_instance
-from database import import_wiki_locations
 from langchain_community.retrievers import WikipediaRetriever
 from langchain.chains.retrieval import create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
@@ -16,6 +15,7 @@ from base.services import get_ollama
 from prompts.article_geo_location import build_prompt as article_geo_location_prompt
 from prompts.default import build_prompt as default_prompt
 from database import query_location
+from database import import_locations
 
 app = Flask(__name__)
 
@@ -89,8 +89,8 @@ def ollama_llm():
 if __name__ == '__main__':
   kill_previous_instance()
   # from scraper.wiki_locations import generate_locations_data
+  loop = asyncio.get_event_loop()
+  loop.run_until_complete(import_locations(False))
   # loop = asyncio.get_event_loop()
-  # loop.run_until_complete(generate_locations_data(True))
-  # loop = asyncio.get_event_loop()
-  # loop.run_until_complete(import_wiki_locations())
-  app.run(host="0.0.0.0", port=80)
+  # loop.run_until_complete(import_locations())
+  # app.run(host="0.0.0.0", port=80)

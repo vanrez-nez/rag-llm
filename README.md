@@ -4,6 +4,7 @@
 - [Chroma](https://github.com/chroma-core/chroma) as Embedding Database (chroma)
 - [LangChain](https://www.langchain.com/) as Builder (container: rag-api)
 - [Ollama](https://ollama.com/) as the LLM Model Loader (container: ollama)
+- [Nominatim](https://nominatim.org/) as the Geocoder (container: nominatim)
 
 ## Setup
 Install docker and run:
