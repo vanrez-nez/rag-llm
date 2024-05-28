@@ -7,7 +7,6 @@ from flask import Response
 from base.logger import log
 from base.profile import profile_function
 from server_process import kill_previous_instance
-from database import test_chroma
 from database import import_wiki_locations
 from langchain_community.retrievers import WikipediaRetriever
 from langchain.chains.retrieval import create_retrieval_chain
@@ -16,7 +15,8 @@ from langchain.prompts import PromptTemplate, ChatPromptTemplate, MessagesPlaceh
 from base.services import get_ollama
 from prompts.article_geo_location import build_prompt as article_geo_location_prompt
 from prompts.default import build_prompt as default_prompt
-from database_milvus import test_milvus_db
+from database import query_location
+
 app = Flask(__name__)
 
 def get_prompt(prompt_type, *args, **kwargs):
@@ -68,16 +68,9 @@ def wikipedia_llm():
 @app.route("/chroma_llm", methods=["POST"])
 def chroma_llm():
   query = request.form.get('query')
-  results = test_chroma(query)
-  # log(results)
+  results = query_location(query)
   json_str = json.dumps(results, ensure_ascii=False)
   response = Response(json_str, content_type='application/json; charset=utf-8')
-  return response
-
-@app.route("/milvus_db", methods=["POST"])
-def milvus_db():
-  test_milvus_db()
-  response = Response('Running!', content_type='application/json; charset=utf-8')
   return response
 
 @app.route("/ollama_llm", methods=["POST"])

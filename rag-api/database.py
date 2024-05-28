@@ -1,4 +1,5 @@
 from curses import meta
+from operator import index
 from base.logger import log
 from base.services import get_chroma
 # from base.services import get_ollama
@@ -16,28 +17,31 @@ async def import_wiki_locations():
   collection = client.get_or_create_collection(
     WIKIS_LOCATIONS_COLLECTION_NAME,
     embedding_function=get_default_embedding_fn(),
-    metadata={ "hnsw:space": "cosine" }
+    metadata={ "hnsw:space": "l2" }
   )
   for location in locations:
     log(f"Processing location: {location['title']}")
     geo = location['geo_info']
-    borders = f"Fronteras: {geo['borders']}." if geo['borders'] else ''
     aliases = f"Tambien conocido como: {geo['aliases']}." if geo['aliases'] else ""
+    indexable_items = [location['title'], geo['state'], aliases]
+    # filter out empty values
+    indexable_items = [item for item in indexable_items if item]
     collection.upsert(
-      documents=[f"{location['title']}: {location['description']}. {aliases} {borders}"],
+      documents=['. '.join(indexable_items)],
       metadatas=[{
-        'nombre': geo['name'],
+        'description': location['description'],
+        'name': geo['name'],
         'aliases': geo['aliases'] or '',
-        'pais': geo['country'],
-        'estado': geo['state'] or '',
-        'capital': geo['capital_city'] or '',
-        'fronteras': geo['borders'],
+        'country': geo['country'],
+        'state': geo['state'] or '',
+        'capital_city': geo['capital_city'] or '',
+        'borders': geo['borders'],
         'latitud': geo['lat'] or 0,
         'longitud': geo['lng'] or 0,
-        'es_pais': geo['is_country'],
-        'es_ciudad': geo['is_city'],
-        'es_municipio': geo['is_municipality'],
-        'es_estado': geo['is_state'],
+        'is_country': geo['is_country'],
+        'is_city': geo['is_city'],
+        'is_municipality': geo['is_municipality'],
+        'is_state': geo['is_state'],
         'url': location['url'],
       }],
       ids=[geo['id']]
@@ -45,14 +49,40 @@ async def import_wiki_locations():
 
   log(len(locations))
 
-def test_chroma(query: str):
+def format_results(results):
+  items = []
+  size = len(results['documents'])
+  for i in range(size):
+    items.append({
+      'id': results['ids'][i][0],
+      'distance': results['distances'][i][0],
+      'document': results['documents'][i][0],
+      'metadata': results['metadatas'][i][0]
+    })
+  return items
+
+def query_location(query: str):
   client = get_chroma()
   collection = client.get_or_create_collection(
     WIKIS_LOCATIONS_COLLECTION_NAME,
     embedding_function=get_default_embedding_fn(),
-    metadata={ "hnsw:space": "cosine"} # l2 is the default
+    metadata={ "hnsw:space": "l2" } # l2 is the default
   )
 
-  # results = collection.peek(limit = 10)
-  results = collection.query(query_texts=[query], n_results=10, )
+  results = collection.query(query_texts=[query], n_results=1)
+  results = format_results(results)
+  # filter results with distance > 0.5
+  # results = [result for result in results if result['distance'] < 0.75]
+
+  if len(results) == 0:
+    return []
+
+  first = results[0]
+
+  # try extracting its state if it's not one
+  if (not first['metadata']['is_state']):
+    state_name = first['metadata']['state']
+    state = collection.query(query_texts=[state_name], n_results=1, where={'is_state': True})
+    results.append(format_results(state))
+
   return results

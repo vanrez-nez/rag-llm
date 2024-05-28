@@ -23,33 +23,6 @@ services:
       - ANONYMIZED_TELEMETRY=${ANONYMIZED_TELEMETRY:-TRUE}
     ports:
       - ${CHROMA_PORT}:8000
-  milvus:
-    image: milvusdb/milvus:v2.4.1
-    container_name: milvus
-    restart: always
-    security_opt:
-      - seccomp:unconfined
-    ports:
-      - "${MILVUS_PORT}:19530"
-      - "9091:9091"
-      - "2379:2379"
-    volumes:
-      - ./milvus/storage:/var/lib/milvus
-      - type: bind
-        source: ./milvus/embedEtcd.yaml
-        target: /milvus/configs/embedEtcd.yaml
-    environment:
-      - ETCD_USE_EMBED=true
-      - ETCD_DATA_DIR=/var/lib/milvus/etcd
-      - ETCD_CONFIG_PATH=/milvus/configs/embedEtcd.yaml
-      - COMMON_STORAGETYPE=local
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
-      interval: 30s
-      start_period: 90s
-      timeout: 20s
-      retries: 3
-    command: ["milvus", "run", "standalone"]
   rag_api:
     container_name: rag-api
     build:
@@ -64,5 +37,4 @@ services:
       - BUILD_TARGET=${BUILD_TARGET}
       - OLLAMA_PORT=${OLLAMA_PORT}
       - CHROMA_PORT=${CHROMA_PORT}
-      - MILVUS_PORT=${MILVUS_PORT}
       - RAG_API_PORT=${RAG_API_PORT}
