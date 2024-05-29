@@ -17,6 +17,8 @@ from prompts.default import build_prompt as default_prompt
 from database import query_location
 from database import import_locations
 
+# TODO: maybe use https://github.com/openvenues/libpostal
+
 app = Flask(__name__)
 
 def get_prompt(prompt_type, *args, **kwargs):
@@ -91,6 +93,6 @@ if __name__ == '__main__':
   # from scraper.wiki_locations import generate_locations_data
   loop = asyncio.get_event_loop()
   # loop.run_until_complete(import_locations(True))
-  # loop = asyncio.get_event_loop()
-  # loop.run_until_complete(import_locations())
-  app.run(host="0.0.0.0", port=80)
+  loop = asyncio.get_event_loop()
+  loop.run_until_complete(import_locations(False))
+  # app.run(host="0.0.0.0", port=80)

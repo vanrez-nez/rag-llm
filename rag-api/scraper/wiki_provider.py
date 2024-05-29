@@ -27,7 +27,7 @@ FIXED_WIKIDATA_LOCATIONS = {
   "Q20127021": "Q51120215"
 }
 
-async def extract_geo_info(wikidata_id: str, resolve_nested_locations=False):
+async def extract_geo_location(wikidata_id: str, resolve_nested_locations=False) -> Location:
   # log(f"Extracting geo info on: {wikidata_id}")
   wikidata_id = FIXED_WIKIDATA_LOCATIONS.get(wikidata_id) or wikidata_id
   url = WIKIDATA_REST_URL.format(id=wikidata_id)
@@ -42,8 +42,8 @@ async def extract_geo_info(wikidata_id: str, resolve_nested_locations=False):
   # borders
   borders = json.search('statements.P47[*].value.content') or []
   if resolve_nested_locations:
-    borders = [await extract_geo_info(border) for border in borders]
-    borders = [border['name'] for border in borders]
+    borders = [await extract_geo_location(border) for border in borders]
+    borders = [border.name for border in borders]
 
   # relations
   relations = json.search('statements.P31[*].value.content') or []
@@ -56,26 +56,26 @@ async def extract_geo_info(wikidata_id: str, resolve_nested_locations=False):
   # state
   state = json.search('(statements.P131[*].value.content)[0]')
   if resolve_nested_locations and state:
-    state = await extract_geo_info(state)
-    state = state['name']
+    state = await extract_geo_location(state)
+    state = state.name
 
   # country
   country = json.search('(statements.P17[*].value.content)[0]')
   if resolve_nested_locations and country:
-    country = await extract_geo_info(country)
-    country = country['name']
+    country = await extract_geo_location(country)
+    country = country.name
 
   # capital city
   capital_city = json.search('(statements.P36[*].value.content)[0]')
   if resolve_nested_locations and capital_city:
-    capital_city = await extract_geo_info(capital_city)
-    capital_city = capital_city['name']
+    capital_city = await extract_geo_location(capital_city)
+    capital_city = capital_city.name
 
   # capital of
   capital_of = json.search('(statements.P1376[*].value.content)[0]')
   if resolve_nested_locations and capital_of:
-    capital_of = await extract_geo_info(capital_of)
-    capital_of = capital_of['name']
+    capital_of = await extract_geo_location(capital_of)
+    capital_of = capital_of.name
 
   city = name if is_city else ''
   municipality = name if is_municipality else ''
@@ -124,33 +124,34 @@ async def get_wiki_pages():
   cities = await get_locations_by_admin_level(MEXICO_AREA_CODE, ADMIN_LEVEL_CITY)
   # merge all locations
   locations = countries + states + cities
-  locations = locations[0:2600]
+  # locations = locations[0:2600]
   log(f"Locations count: {len(locations)}")
   # deduplicate from name key
   entries = []
   for loc in locations:
-    geo_info = await extract_geo_info(loc['wikidata'], True)
-    wikipedia_url = geo_info['eswiki'] or FIXED_WIKI_LOCATIONS.get(loc['wikidata'])
+    geo_loc = await extract_geo_location(loc['wikidata'], True)
+    wikipedia_url = geo_loc.eswiki or FIXED_WIKI_LOCATIONS.get(loc['wikidata'])
     if not wikipedia_url:
-      wiki_query = [loc['name'], geo_info['state'], geo_info['country'], f"intitle:{loc['name']}"]
+      wiki_query = [loc['name'], geo_loc.state, geo_loc.country, f"intitle:{loc['name']}"]
       wiki_query = ' '.join([q for q in wiki_query if q])
       wiki_query = wiki_query.replace(' ', '+')
       wikipedia_url = await find_wiki_page(wiki_query, 'es')
       warn(f"Alternative wiki page used: {wikipedia_url} from: {loc['name']}.")
-      log(f"\t> Search query augmented with {geo_info['name']}, {geo_info['state']} from Wikidata: {geo_info['id']}")
+      log(f"\t> Search query augmented with {geo_loc.name}, {geo_loc.state} from Wikidata: {geo_loc.id}")
       log(f"\t> Search URL: {WIKIPEDIA_SEARCH_URL.format(lang='es', term=wiki_query)}")
       if not wikipedia_url:
         warn(f"Couldn't find wiki page from: {loc}")
 
     if (wikipedia_url is not None):
       page = await get_url(wikipedia_url, sys.maxsize, 'html')
-      entries.append({ 'scrape': True, 'url': wikipedia_url, 'contents': page, 'geo_info': geo_info })
+      entries.append({ 'scrape': True, 'url': wikipedia_url, 'contents': page, 'location': geo_loc})
     else:
       log(f"Trying to get data from local fixed locations for: {loc['name']}")
       fixed_loc = await get_from_fixed_locations(loc['wikidata'])
       if fixed_loc:
         log(f"Fixed location found: {loc['name']}")
-        entries.append({ 'scrape': False, 'url': fixed_loc['url'], 'contents': fixed_loc['description'], 'geo_info': geo_info })
+        geo_loc.description = fixed_loc['description']
+        entries.append({ 'scrape': False, 'url': fixed_loc['url'], 'location': geo_loc })
       else:
         error(f"Couldn't find wiki page from: {loc}")
   return entries
@@ -158,6 +159,7 @@ async def get_wiki_pages():
 async def scrape_wiki_pages(pages):
   result = []
   for page in pages:
+    geo_loc = page['location']
     if page['scrape']:
       log(f"Scraping page: {page['url']}")
       soup = BeautifulSoup(page['contents'], 'html.parser')
@@ -171,19 +173,11 @@ async def scrape_wiki_pages(pages):
       description = description.getText().replace('()', '')
       # generic punctuation fixes
       description = fix_punctuation_spaces(description)
-      result.append({
-        'url': page['url'],
-        'title': soup.select_one('h1').getText(),
-        'description': description,
-        'geo_info': page['geo_info'],
-      })
+      geo_loc.description = description
+      geo_loc.title = soup.select_one('h1').getText()
+      result.append(geo_loc)
     else:
-      result.append({
-        'url': page['url'],
-        'title': page['geo_info']['name'],
-        'description': page['contents'],
-        'geo_info': page['geo_info'],
-      })
+      result.append(geo_loc)
   return result
 
 if __name__ == "__main__":

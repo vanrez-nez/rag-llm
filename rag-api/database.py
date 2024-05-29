@@ -17,13 +17,11 @@ async def import_nominatim_locations(regenerate):
   return []
 
 async def import_locations(regenerate):
-  # await import_wiki_locations(regenerate)
-  await import_nominatim_locations(regenerate)
+  await import_wiki_locations(regenerate)
+  # await import_nominatim_locations(regenerate)
 
 async def import_wiki_locations(regenerate):
-  locations = []
-  locations += await get_wiki_locations(False)
-  # locations += await get_nominatim_locations(regenerate)
+  locations = await get_wiki_locations(regenerate)
   # locations = locations[:50]
   client = get_chroma()
   client.reset()
@@ -33,36 +31,32 @@ async def import_wiki_locations(regenerate):
     metadata={ "hnsw:space": "l2" }
   )
   for location in locations:
-    log(f"Processing location: {location['title']}")
-    log(location)
-    geo = location['geo_info']
-    aliases = f"Tambien conocido como: {geo['aliases']}." if geo['aliases'] else ""
-    indexable_items = [location.get('title'), geo.get('state'), aliases]
-    # filter out empty values
-    indexable_items = [item for item in indexable_items if item]
-    collection.upsert(
-      documents=['. '.join(indexable_items)],
-      metadatas=[{
-        'description': location.get('description', ''),
-        'name': geo.get('name', ''),
-        'aliases': geo.get('aliases', '') or '',
-        'country': geo.get('country', ''),
-        'state': geo.get('state', '') or '',
-        'capital_city': geo.get('capital_city', '') or '',
-        'borders': geo.get('borders', '') or '',
-        'lat': geo.get('lat', 0) or 0,
-        'lng': geo.get('lng', 0) or 0,
-        'type': geo.get('type', ''),
-        # 'is_country': geo.get('is_country', False),
-        # 'is_city': geo.get('is_city', False),
-        # 'is_town': geo.get('is_town', False),
-        # 'is_village': geo.get('is_village', False),
-        # 'is_municipality': geo.get('is_municipality', False),
-        # 'is_state': geo.get('is_state', False),
-        'url': location.get('url', ''),
-      }],
-      ids=[geo['id']]
-    )
+    pass
+    # log(f"Processing location: {location.title}")
+    # log(location)
+    # geo = location['geo_info']
+    # aliases = f"Tambien conocido como: {geo['aliases']}." if geo['aliases'] else ""
+    # indexable_items = [location.get('title'), geo.get('state'), aliases]
+    # # filter out empty values
+    # indexable_items = [item for item in indexable_items if item]
+    # collection.upsert(
+    #   documents=['. '.join(indexable_items)],
+    #   metadatas=[{
+    #     'description': location.get('description', ''),
+    #     'name': geo.get('name', ''),
+    #     'aliases': geo.get('aliases', '') or '',
+    #     'country': geo.get('country', ''),
+    #     'state': geo.get('state', '') or '',
+    #     'capital_city': geo.get('capital_city', '') or '',
+    #     'borders': geo.get('borders', '') or '',
+    #     'lat': geo.get('lat', 0) or 0,
+    #     'lng': geo.get('lng', 0) or 0,
+    #     'type': geo.get('type', ''),
+    #     'url': location.get('url', ''),
+    #   }],
+    #   ids=[geo['id']]
+    # )
+  log(f"Locations imported: {len(locations)}")
 
 def format_results(results):
   items = []
