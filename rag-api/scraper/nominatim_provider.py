@@ -10,11 +10,29 @@ from scraper.overpass_provider import PLACE_TYPE_HAMLET
 from scraper.location import Location
 
 NOMINATIM_PORT = os.environ.get("NOMINATIM", "8080")
-NOMINATIM_PAGE_URL = 'http://nominatim:{port}/reverse?lat={lat}&lon={lon}&format=json'
+NOMINATIM_REVERSE_URL = 'http://nominatim:{port}/reverse?lat={lat}&lon={lon}&format=json'
+NOMINATIM_SEARCH_URL = 'http://nominatim:{port}/search?q={query}&format=json&addressdetails=1&limit=1'
+NOMINATIM_SEARCH_PARAMS_URL = 'http://nominatim:{port}/search?{params}&addressdetails=1&format=json&limit=1'
 
 async def reverse_lookup(lat, lon):
   """ Makes a reverse lookup using nomatim for a given latitude and longitude. """
-  url = NOMINATIM_PAGE_URL.format(port=NOMINATIM_PORT, lat=lat, lon=lon)
+  url = NOMINATIM_REVERSE_URL.format(port=NOMINATIM_PORT, lat=lat, lon=lon)
+  content = await get_url(url)
+  json_content = json.loads(content)
+  return json_content
+
+async def search_location(query):
+  """ Searches a location by name. """
+  url = NOMINATIM_SEARCH_URL.format(port=NOMINATIM_PORT, query=query)
+  content = await get_url(url)
+  json_content = json.loads(content)
+  return json_content
+
+async def search_location_params(params):
+  """ Searches a location by params. """
+  # merge params dict as URL params key=value and merge them with &
+  params = '&'.join([f'{k}={v}' for k, v in params.items()])
+  url = NOMINATIM_SEARCH_PARAMS_URL.format(port=NOMINATIM_PORT, params=params)
   content = await get_url(url)
   json_content = json.loads(content)
   return json_content

@@ -1,6 +1,3 @@
-from curses import meta
-from operator import index
-import re
 from base.logger import log
 from base.services import get_chroma
 # from base.services import get_ollama
