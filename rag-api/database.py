@@ -13,10 +13,11 @@ LOCATIONS_COLLECTION_NAME = "geo_locations"
 
 async def import_nominatim_locations(regenerate):
   locations = await get_nominatim_locations(regenerate)
+  log(locations[0])
   return []
 
 async def import_locations(regenerate):
-  await import_wiki_locations(regenerate)
+  # await import_wiki_locations(regenerate)
   await import_nominatim_locations(regenerate)
 
 async def import_wiki_locations(regenerate):

@@ -18,6 +18,7 @@ ADMIN_LEVEL_STATE = 4
 ADMIN_LEVEL_CITY = 6
 PLACE_TYPE_TOWN = 'town'
 PLACE_TYPE_VILLAGE = 'village'
+PLACE_TYPE_HAMLET = 'hamlet'
 
 async def get_locations_by_place(code_id: str, place: str):
   """ See https://wiki.openstreetmap.org/wiki/Key:place for place types."""

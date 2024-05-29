@@ -90,7 +90,7 @@ if __name__ == '__main__':
   kill_previous_instance()
   # from scraper.wiki_locations import generate_locations_data
   loop = asyncio.get_event_loop()
-  loop.run_until_complete(import_locations(False))
+  # loop.run_until_complete(import_locations(True))
   # loop = asyncio.get_event_loop()
   # loop.run_until_complete(import_locations())
-  # app.run(host="0.0.0.0", port=80)
+  app.run(host="0.0.0.0", port=80)

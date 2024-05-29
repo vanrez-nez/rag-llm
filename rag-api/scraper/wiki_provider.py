@@ -13,6 +13,7 @@ from scraper.overpass_provider import MEXICO_AREA_CODE
 from scraper.overpass_provider import ADMIN_LEVEL_COUNTRY
 from scraper.overpass_provider import ADMIN_LEVEL_STATE
 from scraper.overpass_provider import ADMIN_LEVEL_CITY
+from scraper.location import Location
 
 WIKIDATA_REST_URL = 'https://www.wikidata.org/w/rest.php/wikibase/v0/entities/items/{id}'
 WIKIPEDIA_PAGE_URL = 'https://{lang}.wikipedia.org/wiki/{slug}'
@@ -76,28 +77,23 @@ async def extract_geo_info(wikidata_id: str, resolve_nested_locations=False):
     capital_of = await extract_geo_info(capital_of)
     capital_of = capital_of['name']
 
-  loc_type = ''
-  try:
-    types = ['country', 'city', 'municipality', 'state']
-    type_index = [is_country, is_city, is_municipality, is_state].index(True)
-    loc_type = types[type_index]
-  except Exception as e:
-    loc_type = ''
-
-  return {
+  city = name if is_city else ''
+  municipality = name if is_municipality else ''
+  return Location({
     'id': wikidata_id,
     'name': name,
     'aliases': ', '.join(aliases_lst),
-    'type': loc_type,
-    'state': state,
-    'capital_of': capital_of,
-    'capital_city': capital_city, # in municipality this is the head of the municipality
     'country': country,
+    'state': state,
+    'municipality': municipality,
+    'city': city,
+    # 'capital_of': capital_of,
+    # 'capital_city': capital_city, # in municipality this is the head of the municipality
     'borders': ', '.join(borders),
     'lat': coords_lat,
-    'lng': coords_lng,
+    'lon': coords_lng,
     'eswiki': es_wiki
-  }
+  })
 
 async def find_wiki_page(query: str, lang: str):
   """ Finds a wikipedia page from a wikidata id by augmenting the search with the state and country """

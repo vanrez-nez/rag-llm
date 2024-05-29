@@ -6,6 +6,8 @@ from scraper.overpass_provider import get_locations_by_place
 from scraper.overpass_provider import MEXICO_AREA_CODE
 from scraper.overpass_provider import PLACE_TYPE_TOWN
 from scraper.overpass_provider import PLACE_TYPE_VILLAGE
+from scraper.overpass_provider import PLACE_TYPE_HAMLET
+from scraper.location import Location
 
 NOMINATIM_PORT = os.environ.get("NOMINATIM", "8080")
 NOMINATIM_PAGE_URL = 'http://nominatim:{port}/reverse?lat={lat}&lon={lon}&format=json'
@@ -20,28 +22,28 @@ async def reverse_lookup(lat, lon):
 async def get_locations():
   villages = await get_locations_by_place(MEXICO_AREA_CODE, PLACE_TYPE_VILLAGE)
   towns = await get_locations_by_place(MEXICO_AREA_CODE, PLACE_TYPE_TOWN)
-  locations = towns + villages
+  hamlets = await get_locations_by_place(MEXICO_AREA_CODE, PLACE_TYPE_HAMLET)
+  locations = towns + villages + hamlets
+  # locations = locations[:50]
   result = []
   for location in locations:
     lat = location.get('lat')
     lon = location.get('lon')
     lookup = await reverse_lookup(lat, lon)
     address = lookup.get('address', [])
-
-    result.append({
+    result.append(Location(fields={
       'id': location.get('id'),
       'title': location.get('name'),
-      'description': location.get('description'),
-      'geo_info': {
-        'name': location.get('name'),
-        'state': address.get('state', None),
-        'municipality': address.get('county', None),
-        'village': address.get('village', None),
-        'city': address.get('city', None),
-        'town': address.get('town', address.get('borough', None)),
-        'country': address.get('country', None),
-        'lat': lat,
-        'lng': lon
-      }
-    })
+      'description': location.get('description', ''),
+      'name': location.get('name', ''),
+      'country': address.get('country', ''),
+      'state': address.get('state', ''),
+      'municipality': address.get('county', ''),
+      'city': address.get('city', ''),
+      'village': address.get('village', ''),
+      'hamlet': address.get('hamlet', ''),
+      'town': address.get('town', ''),
+      'lat': lat,
+      'lon': lon
+    }))
   return result
