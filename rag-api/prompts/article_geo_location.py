@@ -1,4 +1,3 @@
-import json
 from operator import le
 from string import Template
 from base.json_parse import try_parse_json
@@ -6,11 +5,11 @@ from base.logger import log
 from base.logger import debug
 from base.logger import error
 from base.logger import warn
-from scraper.nominatim_provider import search_location
-from scraper.nominatim_provider import search_location_params
-from scraper.nominatim_provider import search_location_details
-from scraper.nominatim_provider import address_lookup
+from providers.nominatim_provider import search_location
+from providers.nominatim_provider import search_location_params
+from providers.nominatim_provider import search_location_details
 from base.json_search import JSONSearch
+from entities.article_location import ArticleLocation
 
 def build_prompt(title, content):
   t = Template("""
@@ -39,34 +38,7 @@ def build_prompt(title, content):
   return t.substitute(title=title, content=content)
 
 
-class GeoLocation:
-  def __init__(self, fields = {}) -> None:
-    self.place_id = fields.get('place_id', '')
-    self.osm_type = fields.get('osm_type', '')
-    self.osm_id = fields.get('osm_id', '')
-    self.country = fields.get('country', '')
-    self.city = fields.get('city', '')
-    self.state = fields.get('state', '')
-    self.state_district = fields.get('state_district', '')
-    self.county = fields.get('county', '')
-    self.town = fields.get('town', '')
-    self.rank_address = fields.get('rank_address', '')
-    self.lat = fields.get('lat', '')
-    self.lon = fields.get('lon', '')
-
-  @property
-  def id(self):
-    """
-      place_id is nominatim's unique identifier for a location but can't be used externally as it changes each time
-      database is rebuilt. Instead we use osm_type and osm_id for form a unique id. osm_id cannot be used alone
-      as it is not unique across osm_types.
-    """
-    return f"{self.osm_type}-{self.osm_id}"
-
-  def __str__(self) -> str:
-    return json.dumps(self.__dict__)
-
-async def extract_related_locations(location: GeoLocation):
+async def extract_related_locations(location: ArticleLocation):
   query_params = []
   query_params.append({ 'country': location.country, 'state': location.state, 'city': location.city })
   query_params.append({ 'country': location.country, 'state': location.state, 'city': location.town })
@@ -102,7 +74,7 @@ async def geo_location_from_results(results: JSONSearch, default_fields = {}):
     details = await search_location_details(place_id)
     # _details = JSONSearch(json.dumps(details))
     # log(f'Details: {details}')
-    return GeoLocation({
+    return ArticleLocation({
       'place_id': place_id,
       'osm_type': results.search('osm_type'),
       'osm_id': results.search('osm_id'),
