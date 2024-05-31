@@ -25,7 +25,7 @@ def build_prompt(title, content):
       Contenido: $content
       ```
 
-      Ejemplo de respuesta:
+      Ejemplo de respuesta esperada en formato JSON:
       ```
       [
         { "ciudad": "Ciudad 1", "municipio": "Municipio, comunidad, localidad", "estado": "Estado 1"},
@@ -60,6 +60,7 @@ async def extract_related_locations(location: ArticleLocation):
         'state': details_loc.search(fmt_exp.format(rank_from=5, rank_to=9)),
         'county': details_loc.search(fmt_exp.format(rank_from=10, rank_to=12)),
         'city': details_loc.search(fmt_exp.format(rank_from=13, rank_to=16)),
+        'town': details_loc.search(fmt_exp.format(rank_from=17, rank_to=21)),
       }
       debug(f'Defaults: {defaults}')
       geo_loc = await geo_location_from_results(related_loc, default_fields=defaults)
@@ -72,8 +73,6 @@ async def geo_location_from_results(results: JSONSearch, default_fields = {}):
   try:
     place_id = results.search('place_id')
     details = await search_location_details(place_id)
-    # _details = JSONSearch(json.dumps(details))
-    # log(f'Details: {details}')
     return ArticleLocation({
       'place_id': place_id,
       'osm_type': results.search('osm_type'),
@@ -82,6 +81,7 @@ async def geo_location_from_results(results: JSONSearch, default_fields = {}):
       'city': results.search('address.city') or default_fields.get('city', None),
       'state': results.search('address.state') or default_fields.get('state', None),
       'state_district': results.search('address.state_district'),
+      'village': results.search('address.village'),
       'county': results.search('address.county') or default_fields.get('county', None),
       'town': results.search('address.town') or default_fields.get('town', None),
       'rank_address': details.search('rank_address'),
@@ -148,7 +148,7 @@ def deduplicate_locations(locations):
       unique_locations.append(location)
   return unique_locations
 
-def filter_locations_between_rank(locations, rank_from: int, rank_to: int):
+def filter_locations_between_rank(locations: list[ArticleLocation], rank_from: int, rank_to: int):
   """
       Both LLM and Nominatim are not perfect with high rank locations (such as streets or new neighbourhoods).
       Maybe in the future we can increase the range.
@@ -186,5 +186,4 @@ async def parse_response(response_str):
     pass
   locations = deduplicate_locations(locations + parent_locations)
   locations = filter_locations_between_rank(locations, 4, 16)
-  locations = [location.__dict__ for location in locations]
   return locations
