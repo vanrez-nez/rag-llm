@@ -12,6 +12,7 @@ class ArticleLocation(SerializableDict):
     self.state = fields.get('state', '')
     self.state_district = fields.get('state_district', '')
     self.county = fields.get('county', '')
+    self.borough = fields.get('borough', '')
     self.town = fields.get('town', '')
     self.village = fields.get('village', '')
     self.rank_address = fields.get('rank_address', '')
@@ -26,4 +27,5 @@ class ArticleLocation(SerializableDict):
       database is rebuilt. Instead we use osm_type and osm_id for form a unique id. osm_id cannot be used alone
       as it is not unique across osm_types.
     """
-    return f"{self.osm_type}-{self.osm_id}"
+    t = self.osm_type[0].upper() if self.osm_type else ''
+    return f"{t}{self.osm_id}"

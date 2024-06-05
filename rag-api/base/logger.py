@@ -1,6 +1,6 @@
 import logging
 
-LOG_LEVEL = logging.INFO
+LOG_LEVEL = logging.DEBUG
 
 class CustomFormatter(logging.Formatter):
   """Logging Formatter to add colors and count warning / errors"""

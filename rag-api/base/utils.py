@@ -1,5 +1,6 @@
 import re
 from threading import Timer
+from unidecode import unidecode
 
 def debounce(wait):
     """ Decorator that will postpone a functions
@@ -55,3 +56,13 @@ def replace_unicode_escapes(text: str):
   for k, v in replacements.items():
     text = text.replace(k, v)
   return text
+
+def normalize_str(str):
+  str = unidecode(str).lower()
+  return re.sub(r'[\s,.:;]', '', str)
+
+def str_in_text(str, content) -> int:
+  str = normalize_str(str)
+  content = normalize_str(content)
+  occurrences = re.findall(re.escape(str), content)
+  return len(occurrences)

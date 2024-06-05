@@ -6,6 +6,7 @@ from watchdog.observers import Observer
 from watchdog.events import PatternMatchingEventHandler
 from base.utils import debounce
 from base.logger import log
+from base.logger import debug
 
 observer = None
 
@@ -19,7 +20,7 @@ def spawn_thread():
     thread.start()
 
 def on_change(event):
-    log(f"{event.event_type} - {event.src_path}")
+    debug(f"{event.event_type} - {event.src_path}")
     spawn_thread()
 
 def get_event_handler():

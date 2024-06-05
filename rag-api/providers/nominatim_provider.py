@@ -6,7 +6,7 @@ from base.json_search import JSONSearch
 
 NOMINATIM_PORT = os.environ.get("NOMINATIM", "8080")
 NOMINATIM_REVERSE_URL = 'http://nominatim:{port}/reverse?lat={lat}&lon={lon}&format=json'
-NOMINATIM_SEARCH_URL = 'http://nominatim:{port}/search?q={query}&format=json&addressdetails=1&limit=1'
+NOMINATIM_SEARCH_URL = 'http://nominatim:{port}/search?q={query}&addressdetails=1&limit=1'
 NOMINATIM_SEARCH_PARAMS_URL = 'http://nominatim:{port}/search?{params}&format=json&limit=1'
 NOMINATIM_DETAILS_URL = 'http://nominatim:{port}/details?place_id={place_id}&addressdetails=1&format=json'
 NOMINATIM_LOOKUP_URL = 'http://nominatim:{port}/lookup?osm_ids={osm_ids}&format=json'

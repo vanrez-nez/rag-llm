@@ -7,7 +7,7 @@ from chromadb.utils.embedding_functions import SentenceTransformerEmbeddingFunct
 
 def get_ollama():
   ollama_port = os.environ.get("OLLAMA_PORT")
-  return Ollama(base_url=f"http://ollama:{ollama_port}", model='llama3', temperature=0)
+  return Ollama(base_url=f"http://ollama:{ollama_port}", model='phi3', temperature=0)
 
 def get_ollama_embedding_fn():
   ollama_port = os.environ.get("OLLAMA_PORT")
