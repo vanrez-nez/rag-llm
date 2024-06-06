@@ -1,5 +1,5 @@
 import json
-import re
+from typing import List, Dict
 import sys
 from base.request import get_url
 from base.logger import log
@@ -23,7 +23,41 @@ PLACE_TYPE_TOWN = 'town'
 PLACE_TYPE_VILLAGE = 'village'
 PLACE_TYPE_HAMLET = 'hamlet'
 
-async def get_locations_by_place(code_id: str, place: str):
+def get_place_ranks() -> List[Dict]:
+  """ See https://nominatim.org/release-docs/develop/customize/Ranking/#search-rank """
+  return [
+    { 'rank_from': 4, 'rank_to': 4, 'values': ['country'] },
+    { 'rank_from': 5, 'rank_to': 9, 'values': ['state', 'region', 'province'] },
+    { 'rank_from': 10, 'rank_to': 12, 'values': ['county'] },
+    { 'rank_from': 13, 'rank_to': 16, 'values': ['city', 'municipality'] },
+    { 'rank_from': 17, 'rank_to': 18, 'values': ['town', 'borough'] },
+    { 'rank_from': 19, 'rank_to': 19, 'values': ['village', 'suburb'] },
+    { 'rank_from': 20, 'rank_to': 20, 'values': ['hamlet'] }
+  ]
+
+def get_ranked_place_types(rank_from: int, rank_to: int) -> List[str]:
+  ranks = get_place_ranks()
+  result = []
+  for rank in ranks:
+    if rank['rank_from'] >= rank_from and rank['rank_to'] <= rank_to:
+      result += rank['values']
+  return result
+
+def higher_ranked_place_types(place_type: str) -> List[str]:
+  ranks = get_place_ranks()
+  place_rank = next((rank for rank in ranks if place_type in rank['values']), None)
+  if not place_rank:
+    return []
+  return get_ranked_place_types(0, place_rank['rank_from'] - 1)
+
+def lower_ranked_place_types(place_type: str) -> List[str]:
+  ranks = get_place_ranks()
+  place_rank = next((rank for rank in ranks if place_type in rank['values']), None)
+  if not place_rank:
+    return []
+  return get_ranked_place_types(place_rank['rank_to'] + 1, sys.maxsize)
+
+async def get_locations_by_place(code_id: str, place: str) -> List[str]:
   """ See https://wiki.openstreetmap.org/wiki/Key:place for place types."""
   data = f"""
     [out:json];

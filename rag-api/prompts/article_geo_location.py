@@ -1,7 +1,3 @@
-import sys
-from operator import le
-from string import Template
-from base.json_parse import try_parse_json
 from base.logger import log
 from base.logger import debug
 from base.logger import error
@@ -11,47 +7,11 @@ from providers.nominatim_provider import search_location_params
 from providers.nominatim_provider import search_location_details
 from base.json_search import JSONSearch
 from entities.article_location import ArticleLocation
-from base.fuzzy_search import FuzzySearch
-from providers.overpass_provider import PLACE_TYPE_STATE
-from providers.overpass_provider import PLACE_TYPE_CITY
-from providers.overpass_provider import PLACE_TYPE_BOROUGH
-from providers.overpass_provider import PLACE_TYPE_TOWN
-from providers.overpass_provider import PLACE_TYPE_VILLAGE
-from providers.overpass_provider import PLACE_TYPE_HAMLET
-from location_mapper import get_locations_map
-from base.utils import str_in_text
-
-from gliner import GLiNER
+from prompts.gliner_geo_tag import extract_locations_from_content
+from providers.overpass_provider import lower_ranked_place_types
 
 MIN_LOCATION_RANK = 4
 MAX_LOCATION_RANK = 20
-Cached_Model = None
-
-def build_prompt(title, content, country='México'):
-  debug('Building Prompt')
-  debug(f'\t Title: {title}')
-  debug(f'\t Content: {content}')
-  t = Template("""
-      ```
-      Titulo: $title
-      Contenido: $content
-      ```
-      Del articulo arriba:
-      - Extrae las entidades geograficas de $country.
-      - Omite colonias, nombres propios, nombres de universidades, empresas, etc.
-
-      Respuesta solo en formato JSON valido:
-      ```
-      [
-        { "ciudad": "Ciudad 1", "municipio": "Municipio o comunidad o localidad", "estado": "Estado 1"},
-        { "ciudad": "Ciudad 2", "municipio": "Municipio o comunidad o localidad", "estado": "Estado 2"}
-        ...
-      ]
-      ```
-
-  """)
-  return t.substitute(title=title, content=content, country=country)
-
 
 async def extract_related_locations(location: ArticleLocation):
   query_params = []
@@ -108,19 +68,6 @@ async def geo_location_from_results(results: JSONSearch, default_fields = {}):
     error('Error mapping location', e)
     return None
 
-async def is_valid_identity(name: str):
-  name = name.lower().strip()
-  if not name:
-    return False
-  results = await search_location(name)
-  # parse int from string or None type
-  rank = int(results.search('place_rank') or sys.maxsize)
-  if not results.empty and rank <= MAX_LOCATION_RANK:
-    return True
-
-def comma_join(values):
-  return ', '.join([v for v in values if v])
-
 def deduplicate_locations(locations):
   unique_locations = []
   for location in locations:
@@ -135,76 +82,37 @@ def filter_locations_between_rank(locations: list[ArticleLocation], rank_from: i
   """
   return [location for location in locations if location.rank_address >= rank_from and location.rank_address <= rank_to]
 
-def get_gliner_model():
-  global Cached_Model
-  if not Cached_Model:
-    Cached_Model = GLiNER.from_pretrained("urchade/gliner_multi-v2.1")
-    Cached_Model.eval()
-  return Cached_Model
-
-def extract_locations_from_ner(response_str):
-  locations = []
-  model = get_gliner_model()
-  labels = ["Estado", "Municipio", "Ciudad"]
-  entities = model.predict_entities(response_str, labels, threshold=0.4)
-  for entity in entities:
-    # NER will somethings put the type of location in the text. We ignore it.
-    if (entity['text'].lower() in ['municipio', 'ciudad', 'estado']):
-      continue
-    if str_in_text(entity['text'], response_str) > 0:
-      locations.append({ entity["label"]: entity["text"] })
-    else:
-      warn(f"Ignoring NER label/value: {entity['label']}:\"{entity['text']}\" not found in text")
-  log(f"Extracted Locations from NER: {locations}")
-  return locations
-
-async def tag_locations(arr: list[str]) -> dict:
-  # deduplicate arr
-  arr = list(set(arr))
-  result = []
-  for name in arr:
-    name = name.strip().capitalize()
-    type = await get_place_type(name)
-    log(f"Name: {name} - Type: {type}")
-    if type:
-      result.append({ type: name })
-  return result
-
-async def get_place_type(name: str) -> str|None:
-  fuzzy = FuzzySearch()
-  loc_map = await get_locations_map()
-  keys_order = [
-    PLACE_TYPE_STATE,
-    PLACE_TYPE_CITY,
-    PLACE_TYPE_BOROUGH,
-    PLACE_TYPE_TOWN,
-    PLACE_TYPE_VILLAGE,
-    PLACE_TYPE_HAMLET
-  ]
-  for type in keys_order:
-    fuzzy.add(type, loc_map[type])
-  results = fuzzy.search(name)
-  if len(results) > 0:
-    return results[0]['type']
-  else:
-    return None
+def parent_locations_to(locations: dict, parent_type: str) -> list[str]:
+  parented_loc_queries = []
+  parent_locs = [loc[parent_type] for loc in locations if parent_type in loc]
+  for loc_type in lower_ranked_place_types(parent_type):
+    child_locs = [loc[loc_type] for loc in locations if loc_type in loc]
+    parented_loc_queries += [f"{child}, {parent}" for parent in parent_locs for child in child_locs]
+  return list(set(parented_loc_queries))
 
 def get_location_queries(tagged_locations: dict) -> list[str]:
-  """ This function will return a list of queries like "city, state" or "town, state" for all tagged locations."""
-  state_loc_queries = []
-  states = [loc['state'] for loc in tagged_locations if 'state' in loc]
-  for loc_type in ['city', 'town', 'borough', 'village', 'hamlet']:
-    state_loc = [loc[loc_type] for loc in tagged_locations if loc_type in loc]
-    state_loc_queries += [f"{loc}, {state}" for state in states for loc in state_loc]
-  return list(set(state_loc_queries))
+  """
+    This function will return a list of queries like "city, {parent}" or "town, {parent}"
+    for all tagged locations. Where parent can be a state or a country.
+  """
+  queries = []
+  queries += parent_locations_to(tagged_locations, 'country')
+  queries += parent_locations_to(tagged_locations, 'state')
+  if not queries:
+    queries += [loc['city'] for loc in tagged_locations if 'city' in loc]
+    queries += [loc['state'] for loc in tagged_locations if 'state' in loc]
+  queries = list(set(queries))
+  return queries
 
-async def parse_response(response_str):
+async def parse_content(content: str, default_state: str = None, default_country: str = None):
   locations = []
   parent_locations = []
   try:
-    ner_locations = extract_locations_from_ner(response_str)
-    ner_labels = [value for d in ner_locations for value in d.values()]
-    tagged_locations = await tag_locations(ner_labels)
+    tagged_locations = await extract_locations_from_content(content)
+    if default_country and not any('country' in loc for loc in tagged_locations):
+      tagged_locations.append({ 'country': default_country })
+    if default_state and not any('state' in loc for loc in tagged_locations):
+      tagged_locations.append({ 'state': default_state })
     log(f'Tagged Locations: {tagged_locations}')
     location_queries = get_location_queries(tagged_locations)
     log(f'Location Queries: {location_queries}')
