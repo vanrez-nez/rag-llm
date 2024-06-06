@@ -1,3 +1,4 @@
+from typing import List, Tuple, Dict
 from base.logger import log
 from base.logger import debug
 from base.logger import error
@@ -9,6 +10,7 @@ from base.json_search import JSONSearch
 from entities.article_location import ArticleLocation
 from prompts.gliner_geo_tag import extract_locations_from_content
 from providers.overpass_provider import lower_ranked_place_types
+from entities.location_relation import LocationRelation
 
 MIN_LOCATION_RANK = 4
 MAX_LOCATION_RANK = 20
@@ -82,26 +84,46 @@ def filter_locations_between_rank(locations: list[ArticleLocation], rank_from: i
   """
   return [location for location in locations if location.rank_address >= rank_from and location.rank_address <= rank_to]
 
-def parent_locations_to(locations: dict, parent_type: str) -> list[str]:
-  parented_loc_queries = []
-  parent_locs = [loc[parent_type] for loc in locations if parent_type in loc]
+def relations_from_parent(locations: dict, parent_type: str) -> List[LocationRelation]:
+  relations = []
+  parent_locs = [loc for loc in locations if parent_type in loc]
   for loc_type in lower_ranked_place_types(parent_type):
-    child_locs = [loc[loc_type] for loc in locations if loc_type in loc]
-    parented_loc_queries += [f"{child}, {parent}" for parent in parent_locs for child in child_locs]
-  return list(set(parented_loc_queries))
+    child_locs = [loc for loc in locations if loc_type in loc]
+    for parent in parent_locs:
+      for child in child_locs:
+        p_tuple = next(iter(parent.items()))
+        c_tuple = next(iter(child.items()))
+        relations.append(LocationRelation(p_tuple, c_tuple))
+  # deduplicate list
+  relations = set(relations)
+  return relations
 
-def get_location_queries(tagged_locations: dict) -> list[str]:
+async def filter_invalid_relations(relations: List[LocationRelation]) -> List[LocationRelation]:
+  log(f"Fitering invalid relations: {relations}")
+  for relation in relations:
+    params = { relation.parent_type: relation.parent_name, relation.child_type: relation.child_name }
+    results = await search_location_params(params)
+    if results.empty:
+      relations.remove(relation)
+  return relations
+
+async def get_location_queries(tagged_locations: dict) -> list[str]:
   """
     This function will return a list of queries like "city, {parent}" or "town, {parent}"
     for all tagged locations. Where parent can be a state or a country.
   """
   queries = []
-  queries += parent_locations_to(tagged_locations, 'country')
-  queries += parent_locations_to(tagged_locations, 'state')
-  if not queries:
-    queries += [loc['city'] for loc in tagged_locations if 'city' in loc]
-    queries += [loc['state'] for loc in tagged_locations if 'state' in loc]
-  queries = list(set(queries))
+  relations = []
+  relations += relations_from_parent(tagged_locations, 'country')
+  relations += relations_from_parent(tagged_locations, 'state')
+  relations = await filter_invalid_relations(relations)
+  # deduplicate list of relations
+  relations = set(relations)
+  for relation in relations:
+    queries.append(str(relation))
+  # if not queries:
+  #   queries += [loc['city'] for loc in tagged_locations if 'city' in loc]
+  #   queries += [loc['state'] for loc in tagged_locations if 'state' in loc]
   return queries
 
 async def parse_content(content: str, default_state: str = None, default_country: str = None):
@@ -114,7 +136,7 @@ async def parse_content(content: str, default_state: str = None, default_country
     if default_state and not any('state' in loc for loc in tagged_locations):
       tagged_locations.append({ 'state': default_state })
     log(f'Tagged Locations: {tagged_locations}')
-    location_queries = get_location_queries(tagged_locations)
+    location_queries = await get_location_queries(tagged_locations)
     log(f'Location Queries: {location_queries}')
     for query in location_queries:
       results = await search_location(query)

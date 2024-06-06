@@ -10,15 +10,24 @@ from providers.overpass_provider import PLACE_TYPE_VILLAGE
 from providers.overpass_provider import PLACE_TYPE_HAMLET
 from location_mapper import get_locations_map
 from base.utils import str_in_text
+from base.utils import split_text
 
 Cached_Model = None
 
 # Uses https://github.com/urchade/GLiNER to label locations in the text using a NER Model
 
 async def extract_locations_from_content(content: str) -> dict:
-  ner_locations = extract_locations_from_ner(content)
-  ner_labels = [value for d in ner_locations for value in d.values()]
-  return await tag_locations(ner_labels)
+  # should be calculating tokens not length to split text
+  # but NER tags doesnt seem to degrade too much using chunks
+  chunks = split_text(content, 1500)
+  log(f"Split text into {len(chunks)} chunks")
+  tags = []
+  for chunk in chunks:
+    log(f"Extracting Locations from chunk: {chunk}")
+    ner_locations = extract_locations_from_ner(chunk)
+    ner_labels = [value for d in ner_locations for value in d.values()]
+    tags += await tag_locations(ner_labels)
+  return tags
 
 def extract_locations_from_ner(response_str):
   locations = []
@@ -26,7 +35,7 @@ def extract_locations_from_ner(response_str):
   labels = ["Estado", "Municipio", "Ciudad"]
   entities = model.predict_entities(response_str, labels, threshold=0.4)
   for entity in entities:
-    # NER will somethings put the type of location in the text. We ignore it.
+    # NER will sometimes put the type of location in the text. We ignore it.
     if (entity['text'].lower() in ['municipio', 'ciudad', 'estado']):
       continue
     if str_in_text(entity['text'], response_str) > 0:

@@ -1,3 +1,4 @@
+from typing import List
 import re
 from threading import Timer
 from unidecode import unidecode
@@ -66,3 +67,27 @@ def str_in_text(str, content) -> int:
   content = normalize_str(content)
   occurrences = re.findall(re.escape(str), content)
   return len(occurrences)
+
+def split_text(text: str, max_length: int) -> List[str]:
+  """ Split text into balanced sized chunks when <text> exceeds <max_length> characters """
+  sentences = text.split('. ')
+  # Calculate the number of chunks needed
+  num_chunks = len(text) // max_length + (len(text) % max_length > 0)
+  # Calculate the approximate length of each chunk
+  approx_chunk_length = len(text) // num_chunks
+  chunks = []
+  current_chunk = ""
+  current_length = 0
+  for sentence in sentences:
+    sentence_length = len(sentence) + 2  # Account for the dot and space
+    if current_length + sentence_length > approx_chunk_length and len(chunks) < num_chunks - 1:
+      chunks.append(current_chunk.strip())
+      current_chunk = sentence + ". "
+      current_length = sentence_length
+    else:
+      current_chunk += sentence + ". "
+      current_length += sentence_length
+  # Append the last chunk if it's not empty
+  if current_chunk.strip():
+    chunks.append(current_chunk.strip())
+  return chunks
