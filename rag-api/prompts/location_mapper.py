@@ -27,7 +27,7 @@ async def get_locations_map() -> dict:
 
 async def generate_all():
   locs_dict = {}
-  for type in [PLACE_TYPE_CITY, PLACE_TYPE_BOROUGH, PLACE_TYPE_TOWN]:
+  for type in [PLACE_TYPE_CITY, PLACE_TYPE_BOROUGH, PLACE_TYPE_TOWN, PLACE_TYPE_VILLAGE, PLACE_TYPE_HAMLET]:
     locs_dict[type] = await get_locations_by_place(MEXICO_AREA_CODE, type)
   for level in [ADMIN_LEVEL_COUNTRY, ADMIN_LEVEL_STATE, ADMIN_LEVEL_CITY]:
     levels_to_type = { '2': 'country', '4': 'state', '6': 'city' }
