@@ -11,16 +11,14 @@ class FuzzySearch:
   def add(self, type: str, items: list[str]):
       self.collections[type] = items
 
-  def search(self, keyword: str, min_score: int = 99) -> Any:
+  def search(self, keyword: str, min_score: int = 97) -> Any:
     types = self.collections.keys()
     results = []
     for c_type in types:
-      match = process.extractOne(keyword, self.collections[c_type])
+      match = process.extractOne(keyword, self.collections[c_type], scorer=fuzz.token_sort_ratio)
       if not match:
         continue
       score = int(match[1] or 0)
-      if match[0].startswith(keyword):
-        score = 100
       if match and score >= min_score:
         debug(f"Match: {match[0]} with {match[1]} for {keyword}")
         results.append({
