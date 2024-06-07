@@ -6,6 +6,8 @@ from providers.overpass_provider import PLACE_TYPE_STATE
 from providers.overpass_provider import PLACE_TYPE_CITY
 from providers.overpass_provider import PLACE_TYPE_BOROUGH
 from providers.overpass_provider import PLACE_TYPE_TOWN
+from providers.overpass_provider import PLACE_TYPE_VILLAGE
+from providers.overpass_provider import PLACE_TYPE_HAMLET
 from providers.overpass_provider import PLACE_TYPE_COUNTRY
 from location_mapper import get_locations_map
 from base.utils import str_in_text
@@ -13,6 +15,8 @@ from base.utils import split_text
 
 Cached_Model = None
 
+LOCATION_LABELS = ["Pais", "Estado", "Municipio", "Ciudad", "Comunidad", "Pueblo", "Colonia", "Sitio"]
+OTHER_LABELS = ["Organizacion", "Evento", "Persona", "Cargo"]
 # Uses https://github.com/urchade/GLiNER to label locations in the text using a NER Model
 
 async def extract_locations_from_content(content: str) -> dict:
@@ -24,14 +28,23 @@ async def extract_locations_from_content(content: str) -> dict:
     ner_locations = extract_locations_from_ner(chunk)
     ner_labels = [value for d in ner_locations for value in d.values()]
     tags += await tag_locations(ner_labels)
-  return tags
+  return deduplicate_tags(tags)
+
+def deduplicate_tags(tags: list[dict]) -> list[dict]:
+  result = []
+  for tag in tags:
+    if tag not in result:
+      result.append(tag)
+  return result
 
 def extract_locations_from_ner(response_str):
   locations = []
   model = get_gliner_model()
-  labels = ["Country", "Estado", "Municipio", "Ciudad"]
+  labels = LOCATION_LABELS + OTHER_LABELS
   entities = model.predict_entities(response_str, labels, threshold=0.4)
   for entity in entities:
+    if entity['label'] in OTHER_LABELS:
+      continue
     # NER will sometimes put the type of location in the text. We ignore it.
     if (entity['text'].lower() in ['municipio', 'ciudad', 'estado']):
       continue
@@ -63,8 +76,8 @@ async def get_place_type(name: str) -> str|None:
     PLACE_TYPE_CITY,
     PLACE_TYPE_BOROUGH,
     PLACE_TYPE_TOWN,
-    # PLACE_TYPE_VILLAGE,
-    # PLACE_TYPE_HAMLET
+    PLACE_TYPE_VILLAGE,
+    PLACE_TYPE_HAMLET
   ]
   for type in keys_order:
     fuzzy.add(type, loc_map[type])
