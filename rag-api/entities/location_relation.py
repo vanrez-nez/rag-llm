@@ -29,7 +29,7 @@ class LocationRelation():
     return hash(str(self))
 
   def __repr__(self) -> str:
-    return str(self)
+    return f"({str(self)})"
 
   def __str__(self) -> str:
     c = self.child_name or '?'
