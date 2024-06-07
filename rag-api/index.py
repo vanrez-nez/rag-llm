@@ -18,7 +18,6 @@ async def geo_locate_article():
   content = request.form.get('content')
   content = "\n".join([title, content])
   locations = await parse_geo_location_content(content)
-  log(f"Locations parsed: {locations}")
   json_str = json.dumps(locations, ensure_ascii=False)
   response = Response(json_str, content_type='application/json; charset=utf-8')
   return response
