@@ -13,6 +13,7 @@ from providers.overpass_provider import PLACE_TYPE_VILLAGE
 from providers.overpass_provider import MEXICO_AREA_CODE
 from providers.overpass_provider import ADMIN_LEVEL_CITY
 from providers.overpass_provider import ADMIN_LEVEL_STATE
+from providers.overpass_provider import ADMIN_LEVEL_COUNTRY
 
 CACHE_FILE = 'storage/locations_map.json'
 
@@ -26,10 +27,10 @@ async def get_locations_map() -> dict:
 
 async def generate_all():
   locs_dict = {}
-  for type in [PLACE_TYPE_CITY, PLACE_TYPE_BOROUGH, PLACE_TYPE_TOWN, PLACE_TYPE_VILLAGE, PLACE_TYPE_HAMLET]:
+  for type in [PLACE_TYPE_CITY, PLACE_TYPE_BOROUGH, PLACE_TYPE_TOWN]:
     locs_dict[type] = await get_locations_by_place(MEXICO_AREA_CODE, type)
-  for level in [ADMIN_LEVEL_STATE, ADMIN_LEVEL_CITY]:
-    levels_to_type = { '4': 'state', '6': 'city' }
+  for level in [ADMIN_LEVEL_COUNTRY, ADMIN_LEVEL_STATE, ADMIN_LEVEL_CITY]:
+    levels_to_type = { '2': 'country', '4': 'state', '6': 'city' }
     type = levels_to_type[str(level)]
     locs_dict.setdefault(type, [])
     locs_dict[type] += await get_locations_by_admin_level(MEXICO_AREA_CODE, level)

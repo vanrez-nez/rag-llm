@@ -16,6 +16,7 @@ MEXICO_AREA_CODE = 3600114686
 ADMIN_LEVEL_COUNTRY = 2
 ADMIN_LEVEL_STATE = 4
 ADMIN_LEVEL_CITY = 6
+PLACE_TYPE_COUNTRY = 'country'
 PLACE_TYPE_STATE = 'state'
 PLACE_TYPE_CITY = 'city'
 PLACE_TYPE_BOROUGH = 'borough'
@@ -24,16 +25,35 @@ PLACE_TYPE_VILLAGE = 'village'
 PLACE_TYPE_HAMLET = 'hamlet'
 
 def get_place_ranks() -> List[Dict]:
-  """ See https://nominatim.org/release-docs/develop/customize/Ranking/#search-rank """
+  """ See
+      https://nominatim.org/release-docs/develop/customize/Ranking/#search-rank
+      https://nominatim.org/release-docs/develop/api/Output/#addressdetails
+  """
   return [
+    { 'rank_from': 1, 'rank_to': 3, 'values': ['continent', 'ocean'] },
     { 'rank_from': 4, 'rank_to': 4, 'values': ['country'] },
     { 'rank_from': 5, 'rank_to': 9, 'values': ['state', 'region', 'province'] },
     { 'rank_from': 10, 'rank_to': 12, 'values': ['county'] },
-    { 'rank_from': 13, 'rank_to': 16, 'values': ['city', 'municipality'] },
+    { 'rank_from': 13, 'rank_to': 16, 'values': ['city', 'municipality', 'island'] },
     { 'rank_from': 17, 'rank_to': 18, 'values': ['town', 'borough'] },
     { 'rank_from': 19, 'rank_to': 19, 'values': ['village', 'suburb'] },
-    { 'rank_from': 20, 'rank_to': 20, 'values': ['hamlet'] }
+    { 'rank_from': 20, 'rank_to': 20, 'values': ['hamlet', 'farm', 'neighbourhood'] },
+    { 'rank_from': 21, 'rank_to': 25, 'values': ['isolated_dwelling', 'city_block'] }
   ]
+
+def all_rank_place_types(reversed: bool = False) -> List[str]:
+  ranks = get_place_ranks()
+  if reversed:
+    ranks.reverse()
+  return [place for rank in ranks for place in rank['values']]
+
+def is_type_rank_greater_than(place_left: str, place_right: str) -> bool:
+  ranks = get_place_ranks()
+  rank_left = next((rank for rank in ranks if place_left in rank['values']), None)
+  rank_right = next((rank for rank in ranks if place_right in rank['values']), None)
+  if not rank_left or not rank_right:
+    return False
+  return rank_left['rank_from'] > rank_right['rank_from']
 
 def get_ranked_place_types(rank_from: int, rank_to: int) -> List[str]:
   ranks = get_place_ranks()

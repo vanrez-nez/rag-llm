@@ -6,8 +6,7 @@ from providers.overpass_provider import PLACE_TYPE_STATE
 from providers.overpass_provider import PLACE_TYPE_CITY
 from providers.overpass_provider import PLACE_TYPE_BOROUGH
 from providers.overpass_provider import PLACE_TYPE_TOWN
-from providers.overpass_provider import PLACE_TYPE_VILLAGE
-from providers.overpass_provider import PLACE_TYPE_HAMLET
+from providers.overpass_provider import PLACE_TYPE_COUNTRY
 from location_mapper import get_locations_map
 from base.utils import str_in_text
 from base.utils import split_text
@@ -17,8 +16,6 @@ Cached_Model = None
 # Uses https://github.com/urchade/GLiNER to label locations in the text using a NER Model
 
 async def extract_locations_from_content(content: str) -> dict:
-  # should be calculating tokens not length to split text
-  # but NER tags doesnt seem to degrade too much using chunks
   chunks = split_text(content, 1500)
   log(f"Split text into {len(chunks)} chunks")
   tags = []
@@ -32,7 +29,7 @@ async def extract_locations_from_content(content: str) -> dict:
 def extract_locations_from_ner(response_str):
   locations = []
   model = get_gliner_model()
-  labels = ["Estado", "Municipio", "Ciudad"]
+  labels = ["Country", "Estado", "Municipio", "Ciudad"]
   entities = model.predict_entities(response_str, labels, threshold=0.4)
   for entity in entities:
     # NER will sometimes put the type of location in the text. We ignore it.
@@ -61,12 +58,13 @@ async def get_place_type(name: str) -> str|None:
   fuzzy = FuzzySearch()
   loc_map = await get_locations_map()
   keys_order = [
+    PLACE_TYPE_COUNTRY,
     PLACE_TYPE_STATE,
     PLACE_TYPE_CITY,
     PLACE_TYPE_BOROUGH,
     PLACE_TYPE_TOWN,
-    PLACE_TYPE_VILLAGE,
-    PLACE_TYPE_HAMLET
+    # PLACE_TYPE_VILLAGE,
+    # PLACE_TYPE_HAMLET
   ]
   for type in keys_order:
     fuzzy.add(type, loc_map[type])

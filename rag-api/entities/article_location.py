@@ -1,5 +1,8 @@
 from base.logger import log
 from base.serialize import SerializableDict
+from providers.overpass_provider import all_rank_place_types
+
+ALL_TYPES_BY_RANK = all_rank_place_types(reversed=True)
 
 class ArticleLocation(SerializableDict):
   def __init__(self, fields: dict = None) -> None:
@@ -7,18 +10,38 @@ class ArticleLocation(SerializableDict):
     self.place_id = fields.get('place_id', '')
     self.osm_type = fields.get('osm_type', '')
     self.osm_id = fields.get('osm_id', '')
+    self.continent = fields.get('continent', '')
+
     self.country = fields.get('country', '')
-    self.city = fields.get('city', '')
     self.state = fields.get('state', '')
-    self.state_district = fields.get('state_district', '')
+    self.region = fields.get('region', '')
+    self.province = fields.get('province', '')
     self.county = fields.get('county', '')
-    self.borough = fields.get('borough', '')
+    self.city = fields.get('city', '')
+    self.municipality = fields.get('municipality', '')
+    self.island = fields.get('island', '')
     self.town = fields.get('town', '')
+    self.borough = fields.get('borough', '')
     self.village = fields.get('village', '')
+    self.suburb = fields.get('suburb', '')
+    self.hamlet = fields.get('hamlet', '')
     self.rank_address = fields.get('rank_address', '')
     self.lat = fields.get('lat', '')
     self.lon = fields.get('lon', '')
     super().__init__(self.__dict__)
+
+  def get_lower_rank_type(self) -> str:
+    for type in ALL_TYPES_BY_RANK:
+      if getattr(self, type, None):
+        return type
+
+  @property
+  def name(self) -> str:
+    # try get the most specific name using ALL_TYPES_BY_RANK
+    for place in ALL_TYPES_BY_RANK:
+      name = getattr(self, place, None)
+      if name:
+        return name
 
   @property
   def id(self) -> str:

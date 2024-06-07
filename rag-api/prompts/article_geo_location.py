@@ -11,6 +11,8 @@ from entities.article_location import ArticleLocation
 from prompts.gliner_geo_tag import extract_locations_from_content
 from providers.overpass_provider import lower_ranked_place_types
 from entities.location_relation import LocationRelation
+from prompts.location_tree import LocationTree
+from base.utils import str_in_text
 
 MIN_LOCATION_RANK = 4
 MAX_LOCATION_RANK = 20
@@ -46,7 +48,7 @@ async def extract_related_locations(location: ArticleLocation):
       error('Error extracting parent locations', e)
   return result
 
-async def geo_location_from_results(results: JSONSearch, default_fields = {}):
+async def geo_location_from_results(results: JSONSearch, default_fields = {}) -> ArticleLocation:
   try:
     place_id = results.search('place_id')
     details = await search_location_details(place_id)
@@ -54,15 +56,22 @@ async def geo_location_from_results(results: JSONSearch, default_fields = {}):
       'place_id': place_id,
       'osm_type': results.search('osm_type'),
       'osm_id': results.search('osm_id'),
+
       'country': results.search('address.country') or default_fields.get('country', None),
-      'city': results.search('address.city') or default_fields.get('city', None),
       'state': results.search('address.state') or default_fields.get('state', None),
-      'state_district': results.search('address.state_district'),
+      'region': results.search('address.region'),
+      'province': results.search('address.province'),
+      'county': results.search('address.county') or default_fields.get('county', None),
+      'city': results.search('address.city') or default_fields.get('city', None),
+      'municipality': results.search('address.municipality'),
+      'island': results.search('address.island'),
+      'town': results.search('address.town') or default_fields.get('town', None),
       'borough': results.search('address.borough'),
       'village': results.search('address.village'),
-      'county': results.search('address.county') or default_fields.get('county', None),
-      'town': results.search('address.town') or default_fields.get('town', None),
+      'suburb': results.search('address.suburb'),
+      'hamlet': results.search('address.hamlet'),
       'rank_address': details.search('rank_address'),
+
       'lat': results.search('lat'),
       'lon': results.search('lon'),
     })
@@ -103,7 +112,10 @@ async def filter_invalid_relations(relations: List[LocationRelation]) -> List[Lo
   for relation in relations:
     params = { relation.parent_type: relation.parent_name, relation.child_type: relation.child_name }
     results = await search_location_params(params)
-    if results.empty:
+    is_osm_way = results.search('osm_type') == 'way'
+    is_lower_rank = results.search('type') in lower_ranked_place_types(relation.child_type)
+    if results.empty or is_osm_way or is_lower_rank:
+      log(f"Removing relation. Is empty: {results.empty} - Is OSM Way: {is_osm_way}")
       relations.remove(relation)
   return relations
 
@@ -126,15 +138,27 @@ async def get_location_queries(tagged_locations: dict) -> list[str]:
   #   queries += [loc['state'] for loc in tagged_locations if 'state' in loc]
   return queries
 
-async def parse_content(content: str, default_state: str = None, default_country: str = None):
+def filter_locations_not_matching(content: str, locations: list[ArticleLocation]) -> list[ArticleLocation]:
+  """
+    Filters locations that are not in the content.
+  """
+  tree = LocationTree(locations)
+  tree.log_tree()
+  removals = 0
+  for location in tree.locations:
+    if str_in_text(location.name, content) == 0 and len(tree.get_children(location)) == 0:
+      tree.locations.remove(location)
+      removals += 1
+  log(f"Locations removed: {removals}")
+  if (removals > 0):
+    return filter_locations_not_matching(content, tree.locations)
+  return tree.locations
+
+async def parse_content(content: str):
   locations = []
   parent_locations = []
   try:
     tagged_locations = await extract_locations_from_content(content)
-    if default_country and not any('country' in loc for loc in tagged_locations):
-      tagged_locations.append({ 'country': default_country })
-    if default_state and not any('state' in loc for loc in tagged_locations):
-      tagged_locations.append({ 'state': default_state })
     log(f'Tagged Locations: {tagged_locations}')
     location_queries = await get_location_queries(tagged_locations)
     log(f'Location Queries: {location_queries}')
@@ -155,4 +179,5 @@ async def parse_content(content: str, default_state: str = None, default_country
     pass
   locations = deduplicate_locations(locations + parent_locations)
   locations = filter_locations_between_rank(locations, MIN_LOCATION_RANK, MAX_LOCATION_RANK)
+  locations = filter_locations_not_matching(content, locations)
   return locations
