@@ -9,7 +9,7 @@ from providers.nominatim_provider import search_location_details
 from base.json_search import JSONSearch
 from entities.article_location import ArticleLocation
 from prompts.gliner_geo_tag import extract_locations_from_content
-from providers.overpass_provider import lower_ranked_place_types
+from providers.overpass_provider import higher_ranked_place_types, lower_ranked_place_types
 from entities.location_relation import LocationRelation
 from prompts.location_tree import LocationTree
 from base.utils import str_in_text
@@ -57,6 +57,7 @@ async def geo_location_from_results(results: JSONSearch, default_fields = {}) ->
       'osm_type': results.search('osm_type'),
       'osm_id': results.search('osm_id'),
 
+      'continent': results.search('address.continent'),
       'country': results.search('address.country') or default_fields.get('country', None),
       'state': results.search('address.state') or default_fields.get('state', None),
       'region': results.search('address.region'),
@@ -108,14 +109,13 @@ def relations_from_parent(locations: dict, parent_type: str) -> List[LocationRel
   return relations
 
 async def filter_invalid_relations(relations: List[LocationRelation]) -> List[LocationRelation]:
-  log(f"Fitering invalid relations: {relations}")
+  log(f"Fitering potential invalid relations in: {relations}")
   for relation in relations:
     params = { relation.parent_type: relation.parent_name, relation.child_type: relation.child_name }
     results = await search_location_params(params)
     is_osm_way = results.search('osm_type') == 'way'
-    is_lower_rank = results.search('type') in lower_ranked_place_types(relation.child_type)
-    if results.empty or is_osm_way or is_lower_rank:
-      log(f"Removing relation. Is empty: {results.empty} - Is OSM Way: {is_osm_way}")
+    if results.empty or is_osm_way:
+      log(f"Removing relation. Is OSM Way: {is_osm_way}")
       relations.remove(relation)
   return relations
 
@@ -126,21 +126,26 @@ async def get_location_queries(tagged_locations: dict) -> list[str]:
   """
   queries = []
   relations = []
-  relations += relations_from_parent(tagged_locations, 'country')
-  relations += relations_from_parent(tagged_locations, 'state')
-  relations = await filter_invalid_relations(relations)
-  # deduplicate list of relations
-  relations = set(relations)
-  for relation in relations:
-    queries.append(str(relation))
-  # if not queries:
-  #   queries += [loc['city'] for loc in tagged_locations if 'city' in loc]
-  #   queries += [loc['state'] for loc in tagged_locations if 'state' in loc]
+  states = [loc['state'] for loc in tagged_locations if 'state' in loc]
+  # Try creating combinations of city and state (only if there is one state in the article)
+  if len(states) == 1:
+    relations += relations_from_parent(tagged_locations, 'state')
+    relations += relations_from_parent(tagged_locations, 'city')
+    relations = await filter_invalid_relations(relations)
+    # deduplicate list of relations
+    relations = set(relations)
+    for relation in relations:
+      queries.append(str(relation))
+  if not queries:
+    # If no relations were found, try using the city and state names alone
+    queries += [loc['city'] for loc in tagged_locations if 'city' in loc]
+    queries += [loc['state'] for loc in tagged_locations if 'state' in loc]
+  queries = list(set(queries))
   return queries
 
-def filter_locations_not_matching(content: str, locations: list[ArticleLocation]) -> list[ArticleLocation]:
+def filter_unmentioned_locations(content: str, locations: list[ArticleLocation]) -> list[ArticleLocation]:
   """
-    Filters locations that are not in the content.
+    Filters locations that are not mentioned in the content.
   """
   tree = LocationTree(locations)
   tree.log_tree()
@@ -149,9 +154,10 @@ def filter_locations_not_matching(content: str, locations: list[ArticleLocation]
     if str_in_text(location.name, content) == 0 and len(tree.get_children(location)) == 0:
       tree.locations.remove(location)
       removals += 1
-  log(f"Locations removed: {removals}")
+      warn(f"Location removed: {location.name}")
+
   if (removals > 0):
-    return filter_locations_not_matching(content, tree.locations)
+    return filter_unmentioned_locations(content, tree.locations)
   return tree.locations
 
 async def parse_content(content: str):
@@ -179,5 +185,5 @@ async def parse_content(content: str):
     pass
   locations = deduplicate_locations(locations + parent_locations)
   locations = filter_locations_between_rank(locations, MIN_LOCATION_RANK, MAX_LOCATION_RANK)
-  locations = filter_locations_not_matching(content, locations)
+  locations = filter_unmentioned_locations(content, locations)
   return locations
