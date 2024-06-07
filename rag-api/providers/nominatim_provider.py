@@ -1,3 +1,4 @@
+from logging import warn
 import os
 import json
 from base.logger import debug
@@ -50,10 +51,20 @@ async def search_location_params(params) -> JSONSearch:
   """ Searches a location by params. """
   # remove empty params
   params = {k: v for k, v in params.items() if v}
-  # merge params dict as URL params key=value and merge them with &
-  params = '&'.join([f'{k}={v}' for k, v in params.items()])
-  url = NOMINATIM_SEARCH_PARAMS_URL.format(port=NOMINATIM_PORT, params=params)
-  content = await get_url(url)
-  content = unwrap_single_result(content)
-  debug(f"@search_location_params(params={params}) -> {content}")
+  allowed_types = ['city', 'state', 'country', 'county']
+
+  # TODO: promote town to city if city is not present and check what other types can be promoted!
+
+  # validate param keys to be in the list of allowed keys
+  valid_params = len([k for k in params.keys() if k in allowed_types]) == len(params.keys())
+  if valid_params:
+    # merge params dict as URL params key=value and merge them with &
+    params = '&'.join([f'{k}={v}' for k, v in params.items()])
+    url = NOMINATIM_SEARCH_PARAMS_URL.format(port=NOMINATIM_PORT, params=params)
+    content = await get_url(url)
+    content = unwrap_single_result(content)
+    debug(f"@search_location_params(params={params}) -> {content}")
+  else:
+    warn(f"Unsupported params: {params}")
+    content = '[]'
   return JSONSearch(content)
