@@ -12,6 +12,9 @@ NOMINATIM_SEARCH_PARAMS_URL = 'http://nominatim:{port}/search?{params}&format=js
 NOMINATIM_DETAILS_URL = 'http://nominatim:{port}/details?place_id={place_id}&addressdetails=1&format=json'
 NOMINATIM_LOOKUP_URL = 'http://nominatim:{port}/lookup?osm_ids={osm_ids}&format=json'
 
+SEARCH_ALLOWED_PARAMS = ['city', 'state', 'country', 'county', 'street', 'amenity', 'postalcode']
+SEARCH_PARAM_PROMOTIONS = { 'town': 'city' }
+
 def unwrap_single_result(content: str) -> str:
   json_content = json.loads(content)
   if len(json_content) == 1:
@@ -51,13 +54,15 @@ async def search_location_params(params) -> JSONSearch:
   """ Searches a location by params. """
   # remove empty params
   params = {k: v for k, v in params.items() if v}
-  allowed_types = ['city', 'state', 'country', 'county']
-
-  # TODO: promote town to city if city is not present and check what other types can be promoted!
+  # Some types can produce results when promoted (switch to other type)
+  for k, v in SEARCH_PARAM_PROMOTIONS.items():
+    if k in params and v not in params:
+      params[v] = params[k]
+      params.pop(k)
 
   # validate param keys to be in the list of allowed keys
-  valid_params = len([k for k in params.keys() if k in allowed_types]) == len(params.keys())
-  if valid_params:
+  valid_params = [k for k in params.keys() if k in SEARCH_ALLOWED_PARAMS]
+  if len(valid_params) == len(params.keys()):
     # merge params dict as URL params key=value and merge them with &
     params = '&'.join([f'{k}={v}' for k, v in params.items()])
     url = NOMINATIM_SEARCH_PARAMS_URL.format(port=NOMINATIM_PORT, params=params)

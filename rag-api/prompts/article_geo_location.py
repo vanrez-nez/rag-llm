@@ -3,17 +3,17 @@ from base.logger import log
 from base.logger import debug
 from base.logger import error
 from base.logger import warn
+from base.json_search import JSONSearch
 from providers.nominatim_provider import search_location
 from providers.nominatim_provider import search_location_params
 from providers.nominatim_provider import search_location_details
-from base.json_search import JSONSearch
 from entities.article_location import ArticleLocation
-from prompts.gliner_geo_tag import extract_locations_from_content
-from providers.overpass_provider import higher_ranked_place_types, lower_ranked_place_types
+from providers.overpass_provider import lower_ranked_place_types
 from entities.location_relation import LocationRelation
+from entities.location_tags import LocationTags
 from prompts.location_tree import LocationTree
-from base.utils import str_in_text
-
+from prompts.gliner_geo_tag import geo_tag_content as gliner_geo_tag_content
+from prompts.ollama_geo_tag import geo_tag_content as ollama_geo_tag_content
 MIN_LOCATION_RANK = 4
 MAX_LOCATION_RANK = 20
 
@@ -126,6 +126,7 @@ async def get_location_queries(tagged_locations: dict) -> list[str]:
   """
   queries = []
   relations = []
+
   states = [loc['state'] for loc in tagged_locations if 'state' in loc]
   # Try creating combinations of city and state (only if there is one state in the article)
   if len(states) == 1:
@@ -140,10 +141,16 @@ async def get_location_queries(tagged_locations: dict) -> list[str]:
     # If no relations were found, try using the city and state names alone
     queries += [loc['city'] for loc in tagged_locations if 'city' in loc]
     queries += [loc['state'] for loc in tagged_locations if 'state' in loc]
+
+  # make sure to always include the country
+  countries = [loc['country'] for loc in tagged_locations if 'country' in loc]
+  for country in countries:
+    queries.append(country)
+  # deduplicate list
   queries = list(set(queries))
   return queries
 
-def filter_unmentioned_locations(content: str, locations: list[ArticleLocation]) -> list[ArticleLocation]:
+def filter_unmentioned_locations(tags: LocationTags, locations: list[ArticleLocation]) -> list[ArticleLocation]:
   """
     Filters locations that are not mentioned in the content.
   """
@@ -151,22 +158,34 @@ def filter_unmentioned_locations(content: str, locations: list[ArticleLocation])
   tree.log_tree()
   removals = 0
   for location in tree.locations:
-    if str_in_text(location.name, content) == 0 and len(tree.get_children(location)) == 0:
+    if len(tags.with_text(location.name)) == 0 and len(tree.get_children(location)) == 0:
       tree.locations.remove(location)
       removals += 1
       warn(f"Location removed: {location.name}")
 
   if (removals > 0):
-    return filter_unmentioned_locations(content, tree.locations)
+    return filter_unmentioned_locations(tags, tree.locations)
   return tree.locations
 
-async def parse_content(content: str):
+async def tag_content(title: str, content: str):
+  content = "\n".join([title, content])
+  tags = await ollama_geo_tag_content(content)
+  locations = await locations_from_tags(tags)
+  return locations
+
+async def parse_content(title: str, content: str):
+  content = "\n".join([title, content])
+  tags = await gliner_geo_tag_content(content)
+  locations = await locations_from_tags(tags)
+  return locations
+
+async def locations_from_tags(locationTags: LocationTags):
   locations = []
   parent_locations = []
   try:
-    tagged_locations = await extract_locations_from_content(content)
-    log(f'Tagged Locations: {tagged_locations}')
-    location_queries = await get_location_queries(tagged_locations)
+    tags = await locationTags.get_tags()
+    log(tags)
+    location_queries = await get_location_queries(tags)
     log(f'Location Queries: {location_queries}')
     for query in location_queries:
       results = await search_location(query)
@@ -185,5 +204,5 @@ async def parse_content(content: str):
     pass
   locations = deduplicate_locations(locations + parent_locations)
   locations = filter_locations_between_rank(locations, MIN_LOCATION_RANK, MAX_LOCATION_RANK)
-  locations = filter_unmentioned_locations(content, locations)
+  locations = filter_unmentioned_locations(locationTags, locations)
   return locations
